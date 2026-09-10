@@ -17,6 +17,16 @@ Este MVP no hace OCR, clasificación por IA ni movimientos de TIFF. El inventari
 - inventario TIFF de solo lectura e importación de CSV del BAT v2;
 - conciliaciones, reporte operativo y auditoría append-only.
 
+## Ejecución de escritorio en macOS
+
+El repositorio incluye dos lanzadores para utilizar el sistema localmente desde Finder:
+
+1. La primera vez, abra `scripts/preparar_macos.command`.
+2. Cree la cuenta administradora indicada al terminar la preparación.
+3. Para el uso diario, abra `scripts/iniciar_macos.command`.
+
+El segundo lanzador verifica la instalación, aplica migraciones pendientes, inicia Django solamente en `127.0.0.1` y abre el navegador predeterminado. Consulte [Ejecución de escritorio en macOS](docs/EJECUCION_ESCRITORIO_MACOS.md) para instrucciones y solución de problemas.
+
 ## Instalación paso a paso en macOS 11.7.11
 
 Abra Terminal y ejecute cada bloque en orden. Las instrucciones parten de que el proyecto está en `~/Documents/project_digitalizacion`.
