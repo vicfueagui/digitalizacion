@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="h2 mb-1">Lotes</h1><p class="text-body-secondary mb-0">Recepción y conciliación de expedientes físicos.</p></div>
+  {% if perms.batches.receive_batch %}<a class="btn btn-primary" href="{% url 'batch_create' %}">Recibir lote</a>{% endif %}
+</div>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>Lote</th><th>Recepción</th><th>Responsable</th><th>Esperados</th><th>Estado</th><th></th></tr></thead>
+  <tbody>{% for batch in batches %}<tr><td>{{ batch.code }}</td><td>{{ batch.received_at }}</td><td>{{ batch.responsible }}</td><td>{{ batch.expected_records }}</td><td>{{ batch.get_status_display }}</td><td><a href="{% url 'batch_detail' batch.pk %}">Abrir</a></td></tr>{% empty %}<tr><td colspan="6" class="text-center py-4">No hay lotes registrados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

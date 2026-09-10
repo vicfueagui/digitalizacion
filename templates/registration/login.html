@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Acceso · Digitalización SEGEY{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <h1 class="h3">Acceso al sistema</h1>
+        <p class="text-body-secondary">Ingrese con su cuenta autorizada.</p>
+        {% if form.errors %}<div class="alert alert-danger">Usuario o contraseña incorrectos.</div>{% endif %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3"><label class="form-label" for="id_username">Usuario</label>{{ form.username }}</div>
+          <div class="mb-3"><label class="form-label" for="id_password">Contraseña</label>{{ form.password }}</div>
+          <input type="hidden" name="next" value="{{ next }}">
+          <button class="btn btn-primary w-100" type="submit">Ingresar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

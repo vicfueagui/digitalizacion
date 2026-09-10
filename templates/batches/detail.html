@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div><h1 class="h2 mb-1">Lote {{ batch.code }}</h1><p class="text-body-secondary">Recibido {{ batch.received_at }} por {{ batch.responsible }} · {{ batch.get_status_display }}</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'batch_list' %}">Volver a lotes</a>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-md"><div class="card h-100"><div class="card-body"><div class="text-body-secondary">Expedientes esperados</div><div class="h2">{{ reconciliation.expected_records }}</div></div></div></div>
+  <div class="col-md"><div class="card h-100 {% if not reconciliation.expected_matches %}border-warning{% endif %}"><div class="card-body"><div class="text-body-secondary">Expedientes registrados</div><div class="h2">{{ reconciliation.record_count }}</div></div></div></div>
+  <div class="col-md"><div class="card h-100 {% if reconciliation.without_source %}border-danger{% endif %}"><div class="card-body"><div class="text-body-secondary">Sin fila oficial</div><div class="h2">{{ reconciliation.without_source }}</div></div></div></div>
+  <div class="col-md"><div class="card h-100 {% if reconciliation.source_without_record %}border-danger{% endif %}"><div class="card-body"><div class="text-body-secondary">Filas sin expediente</div><div class="h2">{{ reconciliation.source_without_record }}</div></div></div></div>
+</div>
+<div class="row g-3 mb-4">
+  {% if perms.sources.import_payroll %}
+  <div class="col-lg-6"><details class="card shadow-sm" {% if not batch.source_import %}open{% endif %}><summary class="card-header fw-semibold">1. Importar Excel oficial</summary><div class="card-body">
+    {% if batch.source_import %}<div class="alert alert-info">Fuente asociada: {{ batch.source_import.original_filename }} ({{ batch.source_import.accepted_rows }} aceptadas, {{ batch.source_import.error_rows }} con error).</div>{% else %}
+    <form method="post" action="{% url 'batch_attach_existing_source' batch.pk %}" class="mb-4">{% csrf_token %}{{ existing_source_form.as_p }}<button class="btn btn-outline-primary" type="submit">Asociar fuente existente</button></form><hr>
+    <p class="small">O importe un archivo nuevo. Escriba los encabezados exactamente como aparecen. Los valores de sistemas/estado no se adivinan.</p>
+    <form method="post" enctype="multipart/form-data" action="{% url 'batch_import_source' batch.pk %}">{% csrf_token %}{{ import_form.as_p }}<button class="btn btn-primary" type="submit">Importar y asociar</button></form>{% endif %}
+  </div></details></div>
+  {% endif %}
+  {% if perms.batches.reconcile_batch %}
+  <div class="col-lg-6"><details class="card shadow-sm"><summary class="card-header fw-semibold">2. Conciliar expedientes</summary><div class="card-body">
+    {% if batch.source_import %}<form method="post" action="{% url 'batch_materialize' batch.pk %}" class="mb-4">{% csrf_token %}<p>Cree un expediente por cada fila oficial aceptada. La operación es idempotente.</p><button class="btn btn-primary" type="submit">Crear expedientes desde Excel</button></form>{% endif %}
+    <h3 class="h6">Registrar expediente físico sin fila</h3><p class="small text-body-secondary">La discrepancia permanecerá visible hasta conciliarla.</p>
+    <form method="post" action="{% url 'batch_add_record' batch.pk %}">{% csrf_token %}{{ manual_record_form.as_p }}<button class="btn btn-outline-primary" type="submit">Registrar expediente físico</button></form>
+  </div></details></div>
+  {% endif %}
+  {% if perms.digitization.import_bat_csv %}
+  <div class="col-lg-6"><details class="card shadow-sm"><summary class="card-header fw-semibold">Importar control del BAT v2</summary><div class="card-body">
+    <p class="small">La importación compara cantidades y nunca valida el expediente automáticamente.</p>
+    <form method="post" enctype="multipart/form-data" action="{% url 'bat_import' batch.pk %}">{% csrf_token %}{{ bat_import_form.as_p }}<button class="btn btn-outline-primary" type="submit">Importar CSV</button></form>
+  </div></details></div>
+  {% endif %}
+  {% if perms.records.assign_record %}
+  <div class="col-lg-6"><details class="card shadow-sm"><summary class="card-header fw-semibold">Asignación masiva</summary><div class="card-body"><p class="small">Solo aparecen expedientes recibidos o asignados. Una reasignación conserva la custodia anterior.</p><form method="post" action="{% url 'batch_assign' batch.pk %}">{% csrf_token %}{{ bulk_assignment_form.as_p }}<button class="btn btn-primary" type="submit">Asignar seleccionados</button></form></div></details></div>
+  {% endif %}
+</div>
+{% if source_rows %}<div class="card shadow-sm mb-4"><div class="card-header"><h2 class="h5 mb-0">Resultado de la fuente oficial (primeras 100 filas)</h2></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Fila</th><th>CURP</th><th>Estado</th><th>Errores</th><th>Advertencias</th></tr></thead><tbody>{% for row in source_rows %}<tr><td>{{ row.row_number }}</td><td>{{ row.normalized_curp|default:row.curp_raw }}</td><td>{{ row.get_status_display }}</td><td>{% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% empty %}—{% endfor %}</td><td>{% for warning in row.warnings %}{{ warning }}{% if not forloop.last %}; {% endif %}{% empty %}—{% endfor %}</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+{% if bat_rows %}<div class="card shadow-sm mb-4"><div class="card-header"><h2 class="h5 mb-0">Resultado del CSV BAT (primeras 100 filas)</h2></div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Archivo / fila</th><th>CURP</th><th>Resultado</th><th>Estado</th><th>Errores o discrepancias</th></tr></thead><tbody>{% for row in bat_rows %}<tr><td>{{ row.csv_import.source_file_name }} / {{ row.row_number }}</td><td>{{ row.curp|default:"—" }}</td><td>{{ row.organization_result|default:"—" }}</td><td>{{ row.get_status_display }}</td><td>{% for error in row.errors %}{{ error }}{% if not forloop.last %}; {% endif %}{% endfor %}{% for discrepancy in row.discrepancies %}{{ discrepancy.code }}{% if not forloop.last %}; {% endif %}{% empty %}{% if not row.errors %}—{% endif %}{% endfor %}</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+<div class="card shadow-sm"><div class="card-header"><h2 class="h5 mb-0">Expedientes del lote</h2></div><div class="table-responsive"><table class="table table-hover mb-0">
+  <thead><tr><th>CURP</th><th>Nombre</th><th>Estado</th><th>Custodia</th><th>Fuente</th><th></th></tr></thead>
+  <tbody>{% for record in records %}<tr><td>{{ record.person.curp }}</td><td>{{ record.person.full_name|default:"No informado" }}</td><td>{{ record.get_status_display }}</td><td>{{ record.current_custodian|default:"Sin asignar" }}</td><td>{% if record.source_row_id %}Conciliado{% else %}<span class="text-danger">Sin fila</span>{% endif %}</td><td><a href="{% url 'record_detail' record.pk %}">Abrir</a></td></tr>{% empty %}<tr><td colspan="6" class="text-center py-4">No hay expedientes registrados.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,12 @@
+body { min-height: 100vh; }
+.card { border-radius: .65rem; }
+.card-header { background: rgba(255, 255, 255, .72); }
+summary.card-header { cursor: pointer; list-style-position: inside; }
+form p label { display: block; font-weight: 600; margin-bottom: .25rem; }
+form p input:not([type="checkbox"]):not([type="radio"]),
+form p select,
+form p textarea { display: block; width: 100%; padding: .5rem .75rem; border: 1px solid #adb5bd; border-radius: .375rem; }
+form p .helptext { display: block; color: #6c757d; font-size: .875rem; }
+.errorlist { color: #b02a37; }
+dt { color: #495057; }
+dd { margin-bottom: .8rem; }

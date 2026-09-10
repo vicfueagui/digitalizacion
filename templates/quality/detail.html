@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-xl-8"><h1 class="h2">Revisar {{ record.person.curp }}</h1><p>{{ record.person.full_name|default:"Nombre no informado" }} · {{ record.batch.code }} · {{ record.get_status_display }}</p>
+<div class="alert alert-warning">La decisión quedará en el historial. Validar no cierra definitivamente el expediente.</div>
+<div class="card shadow-sm"><div class="card-body"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Registrar decisión</button> <a class="btn btn-outline-secondary" href="{% url 'record_detail' record.pk %}">Ver ficha completa</a></form></div></div></div></div>
+{% endblock %}

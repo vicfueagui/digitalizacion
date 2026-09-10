@@ -1,0 +1,43 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Digitalización SEGEY{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+<body class="bg-body-tertiary">
+  <a class="visually-hidden-focusable" href="#contenido">Saltar al contenido</a>
+  {% if user.is_authenticated %}
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm" aria-label="Navegación principal">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{% url 'dashboard' %}">Digitalización SEGEY</a>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a class="btn btn-sm btn-outline-light" href="{% url 'record_list' %}">Expedientes</a>
+        {% if perms.batches.view_intakebatch %}<a class="btn btn-sm btn-outline-light" href="{% url 'batch_list' %}">Lotes</a>{% endif %}
+        {% if perms.quality.observe_record or perms.quality.validate_record %}<a class="btn btn-sm btn-outline-light" href="{% url 'review_queue' %}">Revisión</a>{% endif %}
+        {% if perms.reports.view_operational_reports %}<a class="btn btn-sm btn-outline-light" href="{% url 'operational_report' %}">Reportes</a>{% endif %}
+        {% if user.is_staff %}<a class="btn btn-sm btn-outline-light" href="{% url 'admin:index' %}">Administración</a>{% endif %}
+        <span class="text-white small">{{ user.get_username }}</span>
+        <form method="post" action="{% url 'logout' %}" class="m-0">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-light" type="submit">Salir</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+  <main id="contenido" class="container-fluid py-4 px-lg-5">
+    {% if messages %}
+      <div aria-live="polite">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

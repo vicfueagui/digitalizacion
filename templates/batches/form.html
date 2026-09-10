@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row"><div class="col-xl-8">
+  <h1 class="h2">Recibir lote</h1>
+  <p class="text-body-secondary">Registre lo que se conoce al momento de la entrega. No se crearán identificadores oficiales automáticamente.</p>
+  <div class="card shadow-sm"><div class="card-body">
+    <form method="post">{% csrf_token %}{{ form.as_p }}<button class="btn btn-primary" type="submit">Registrar recepción</button> <a class="btn btn-outline-secondary" href="{% url 'batch_list' %}">Cancelar</a></form>
+  </div></div>
+</div></div>
+{% endblock %}

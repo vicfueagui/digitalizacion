@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h2">{% if perms.records.view_all_records %}Expedientes{% else %}Mis expedientes{% endif %}</h1>
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-md-5"><label class="form-label" for="q">CURP o nombre</label><input class="form-control" id="q" name="q" value="{{ query }}"></div>
+  <div class="col-md-4"><label class="form-label" for="status">Estado</label><select class="form-select" id="status" name="status"><option value="">Todos</option>{% for value, label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><button class="btn btn-primary" type="submit">Filtrar</button> <a class="btn btn-outline-secondary" href="{% url 'record_list' %}">Limpiar</a></div>
+</form>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>CURP</th><th>Nombre</th><th>Lote</th><th>Sistema esperado</th><th>Estado</th><th>Físicos</th><th>Digitales</th><th>Incidencias</th><th>Siguiente acción</th></tr></thead>
+<tbody>{% for record in records %}<tr><td>{{ record.person.curp }}</td><td>{{ record.person.full_name|default:"No informado" }}</td><td>{{ record.batch.code }}</td><td>{{ record.expected_system|default:"No informado" }}</td><td>{{ record.get_status_display }}</td><td>{% with count=record.latest_physical_count %}{{ count.sheet_count|default:"Pendiente" }}{% endwith %}</td><td>{{ record.digital_assets.count }}</td><td>{{ record.incidents.count }}</td><td><a href="{% url 'record_detail' record.pk %}">Abrir ficha</a></td></tr>{% empty %}<tr><td colspan="9" class="text-center py-4">No hay expedientes con esos filtros.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

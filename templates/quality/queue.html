@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h2">Bandeja de revisión</h1><p class="text-body-secondary">Terminar por digitalizador no equivale a validar.</p>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>CURP</th><th>Lote</th><th>Estado</th><th>Digitalizador</th><th>Físicos</th><th>TIFF</th><th>Incidencias</th><th></th></tr></thead><tbody>{% for record in records %}<tr><td>{{ record.person.curp }}</td><td>{{ record.batch.code }}</td><td>{{ record.get_status_display }}</td><td>{{ record.current_custodian }}</td><td>{% with count=record.latest_physical_count %}{{ count.sheet_count|default:"Pendiente" }}{% endwith %}</td><td>{{ record.digital_assets.count }}</td><td>{{ record.incidents.count }}</td><td><a class="btn btn-sm btn-primary" href="{% url 'review_detail' record.pk %}">Revisar</a></td></tr>{% empty %}<tr><td colspan="8" class="text-center py-4">No hay expedientes pendientes.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

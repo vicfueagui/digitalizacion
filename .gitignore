@@ -1,0 +1,34 @@
+.DS_Store
+
+# Configuración local y secretos
+.env
+.env.*
+!.env.example
+
+# Entornos y cachés de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Datos y archivos generados por la aplicación
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Documentos operativos: nunca versionar expedientes o fuentes reales
+*.tif
+*.tiff
+*.xls
+*.xlsx
+CONTROL_DIGITALIZACION.csv
+RESUMEN_DIGITALIZACION.csv
+RESUMEN_DIGITALIZACION.txt
+HISTORIAL_ORGANIZACION.log
