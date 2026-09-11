@@ -27,6 +27,17 @@ El repositorio incluye dos lanzadores para utilizar el sistema localmente desde 
 
 El segundo lanzador verifica la instalación, aplica migraciones pendientes, inicia Django solamente en `127.0.0.1` y abre el navegador predeterminado. Consulte [Ejecución de escritorio en macOS](docs/EJECUCION_ESCRITORIO_MACOS.md) para instrucciones y solución de problemas.
 
+## Ejecución de escritorio en Windows 10
+
+Windows utiliza un entorno separado para evitar mezclar ejecutables entre sistemas operativos:
+
+1. Instale Python 3.12 activando **Add Python to PATH**.
+2. La primera vez, abra `scripts\preparar_windows10.cmd`.
+3. Cree la cuenta administradora indicada por el preparador.
+4. Para el uso diario, abra `scripts\iniciar_windows10.cmd`.
+
+El lanzador aplica las comprobaciones necesarias, inicia exclusivamente en `127.0.0.1` y abre el navegador predeterminado. Consulte [Ejecución de escritorio en Windows 10](docs/EJECUCION_ESCRITORIO_WINDOWS10.md).
+
 ## Instalación paso a paso en macOS 11.7.11
 
 Abra Terminal y ejecute cada bloque en orden. Las instrucciones parten de que el proyecto está en `~/Documents/project_digitalizacion`.

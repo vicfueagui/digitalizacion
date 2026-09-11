@@ -1,0 +1,76 @@
+name: Windows 10 desktop compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v7
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Preparar entorno de Windows
+        shell: cmd
+        run: scripts\preparar_windows10.cmd --no-pause
+
+      - name: Ejecutar pruebas
+        shell: cmd
+        run: .venv-windows\Scripts\python.exe manage.py test --verbosity 1
+
+      - name: Probar lanzador y respuesta HTTP
+        shell: powershell
+        run: |
+          $env:DIGITALIZACION_OPEN_BROWSER = "0"
+          $env:DIGITALIZACION_NO_PAUSE = "1"
+          $env:DIGITALIZACION_PORT = "8765"
+          $process = Start-Process `
+            -FilePath "cmd.exe" `
+            -ArgumentList "/c", "scripts\iniciar_windows10.cmd" `
+            -PassThru `
+            -NoNewWindow
+          try {
+            $ready = $false
+            for ($attempt = 0; $attempt -lt 80; $attempt++) {
+              if ($process.HasExited) {
+                throw "El lanzador terminó antes de que el servidor estuviera disponible."
+              }
+              try {
+                $login = Invoke-WebRequest `
+                  -UseBasicParsing `
+                  -Uri "http://127.0.0.1:8765/acceso/" `
+                  -TimeoutSec 1
+                $static = Invoke-WebRequest `
+                  -UseBasicParsing `
+                  -Uri "http://127.0.0.1:8765/static/css/app.css" `
+                  -TimeoutSec 1
+                if ($login.StatusCode -eq 200 -and $static.StatusCode -eq 200) {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                Start-Sleep -Milliseconds 250
+              }
+            }
+            if (-not $ready) {
+              throw "El servidor no respondió correctamente dentro del tiempo esperado."
+            }
+          } finally {
+            if (-not $process.HasExited) {
+              taskkill.exe /PID $process.Id /T /F | Out-Null
+            }
+          }
