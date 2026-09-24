@@ -1,0 +1,4 @@
+# Conservar bytes y SHA-256 al clonar en Windows y Mac; no convertir EOL.
+* -text
+*.bat whitespace=cr-at-eol
+instaladores/LICENCIA_PILLOW.txt whitespace=cr-at-eol

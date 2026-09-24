@@ -1,6 +1,6 @@
 # Fase vigente: kit0.6.3 para migración Win7 → Win10
 
-Fecha2026-09-23. No hay .git en esta carpeta ni acceso a producción; código/docs y laboratorios ficticios. **No modernizar producción al trasladar.** Código de origen capturado tal cual (0.6.2 incluso con parches locales); herramientas0.6.3 separadas. SQLite núcleo7/TIFF3 sin DDL. Python3.8.10 x64/Tk8.6/Pillow9.5.0 en primera fase; se exige equivalencia de Tcl/SQLite/libtiff para aceptar Win10.
+Fecha2026-09-23. Git local inicializado para respaldar en vicfueagui/digitalizacion, rama independiente respaldo/digitalizacion-tk-0.6.3. Main remoto contiene otra implementación Django y se conserva intacto. Sin acceso a producción; código/docs y laboratorios ficticios. **No modernizar producción al trasladar.** Código de origen capturado tal cual (0.6.2 incluso con parches locales); herramientas0.6.3 separadas. SQLite núcleo7/TIFF3 sin DDL. Python3.8.10 x64/Tk8.6/Pillow9.5.0 en primera fase; se exige equivalencia de Tcl/SQLite/libtiff para aceptar Win10.
 
 Leer primero [MIGRACION_TECNICA.md](MIGRACION_TECNICA.md), [VALIDACION_V063.md](VALIDACION_V063.md) y [manual de traslado](../MIGRACION_WINDOWS10.html). El plan previo está en PLAN_MIGRACION_WINDOWS10.md. El texto posterior conserva contexto operacional de0.6.2.
 
@@ -24,7 +24,7 @@ Leer este documento y las últimas entradas de [BITACORA_DESARROLLO.md](BITACORA
 
 ## Entorno y alcance
 
-Raíz: `/Users/admin/Downloads/Digitalizacion`. Mac Intel Big Sur, CPython 3.11.4, Tk 8.6.12, SQLite 3.42.0. `.venv`: Pillow 12.3.0; `.venv-pillow95`: Pillow 9.5.0. Destino: Windows 7 SP1 x64, CPython 3.8.10, Pillow 9.5.0, 3 GB RAM. Windows no ejecutado desde este Mac; no hay datos productivos disponibles ni `.git`. No se instalaron componentes globales, servidor ni Docker.
+Raíz: `/Users/admin/Downloads/Digitalizacion`. Mac Intel Big Sur, CPython 3.11.4, Tk 8.6.12, SQLite 3.42.0. `.venv`: Pillow 12.3.0; `.venv-pillow95`: Pillow 9.5.0. Destino: Windows 7 SP1 x64, CPython 3.8.10, Pillow 9.5.0, 3 GB RAM. Windows no ejecutado desde este Mac; no hay datos productivos disponibles (ahora con Git local; ver RESPALDO_GITHUB.md). No se instalaron componentes globales, servidor ni Docker.
 
 ## Estado actual: 0.6.2
 

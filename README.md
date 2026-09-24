@@ -1,5 +1,7 @@
 # Digitalización 0.6.3 · kit de traslado conservador
 
+**GitHub:** este proyecto Python/Tk está en la rama `respaldo/digitalizacion-tk-0.6.3`; `main` contiene otra implementación Django. Consulta [cómo recuperar y respaldar el código](docs/RESPALDO_GITHUB.md).
+
 Aplicación local Python/Tk/SQLite para recepción, digitalización TIFF, revisión y entrega de expedientes. Esta iteración prepara **Windows 7 → Windows 10** conservando el código operacional del origen, sus datos y el runtime3.8.10/Pillow9.5.0. El código capturado puede seguir siendo0.6.2; el kit se ejecuta desde otra carpeta. Sin cambios de esquema, interfaz operacional ni Docker obligatorio.
 
 **Empieza aquí:** [Migración paso a paso](MIGRACION_WINDOWS10.html) · [Manual de uso](docs/MANUAL_USUARIO.html) · [Actualización de código, operación separada](ACTUALIZACION.html). Las guías son locales, imprimibles y funcionan sin internet.

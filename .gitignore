@@ -40,3 +40,12 @@ DEMO.json
 *.jpeg
 *.docx
 ensayos/
+
+# Entradas originales y evidencias locales: no publicar por accidente.
+/PROMPT_CODEX*.md
+/VALIDACION_PRUEBAS.txt
+*.pem
+*.key
+*.p12
+*.pfx
+.ssh/
