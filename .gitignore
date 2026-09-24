@@ -49,3 +49,6 @@ ensayos/
 *.p12
 *.pfx
 .ssh/
+
+# Inventario de fuentes externas privadas.
+/docs/FUENTES_SHA256.txt
