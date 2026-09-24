@@ -1,0 +1,1 @@
+CREATE TABLE importacion_items(importacion_id TEXT NOT NULL REFERENCES importaciones_legado(id),ruta_origen TEXT NOT NULL,archivo_id INTEGER NOT NULL REFERENCES archivos_tiff(id),sha256 TEXT NOT NULL,PRIMARY KEY(importacion_id,ruta_origen));

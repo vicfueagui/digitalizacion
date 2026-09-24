@@ -1,0 +1,3 @@
+# SOLO laboratorio: CPython 3.13.15. No instalar en producción 3.8.10.
+# La equivalencia de hashes TIFF entre Pillow distintos requiere evidencia separada.
+Pillow==12.3.0

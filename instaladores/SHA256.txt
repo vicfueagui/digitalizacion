@@ -1,0 +1,1 @@
+e49eb4e95ff6fd7c0c402508894b1ef0e01b99a44320ba7d8ecbabefddcc5569  Pillow-9.5.0-cp38-cp38-win_amd64.whl

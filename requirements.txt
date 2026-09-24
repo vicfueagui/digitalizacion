@@ -1,0 +1,2 @@
+# Windows 7 / Python 3.8 x64: instalar con INSTALAR_VISOR.bat (wheel local).
+Pillow==9.5.0

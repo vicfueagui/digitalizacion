@@ -1,0 +1,2 @@
+# Python 3.8.10 x64 / Windows 7. Wheel local verificado por instalar_visor.py.
+Pillow==9.5.0

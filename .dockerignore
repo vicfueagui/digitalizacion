@@ -1,0 +1,9 @@
+**
+!app/
+!app/*.py
+!app/*.sql
+!tests/
+!tests/*.py
+!main.py
+!requirements-laptop.txt
+!requirements-legacy.txt
