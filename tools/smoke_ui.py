@@ -24,10 +24,6 @@ def main():
         app.report_callback_exception=exception
         def check():
             try:
-                with patch('webbrowser.open',return_value=True) as browser_open:
-                    app.help()
-                    browser_open.assert_called_once_with((ROOT/'docs/MANUAL_USUARIO.html').as_uri())
-                    assert (ROOT/'docs/MANUAL_USUARIO.html').is_file()
                 work=store.works()[0]['id']
                 viewer=CodingWindow(app,work);app.coder=viewer
                 app.update()

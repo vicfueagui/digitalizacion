@@ -2,10 +2,6 @@
 from pathlib import PurePosixPath
 
 ROOT_FILES = {
-    'migrar.py', 'diagnosticar_integridad.py', 'auditar_integridad_tiff.py',
-    'python_runtime.py', 'preparar_entorno.py', 'lanzar.py', 'ejecutar_python.ps1',
-    'EJECUTAR.bat', 'MIGRAR.bat', 'AUDITAR_INTEGRIDAD.bat',
-    'MIGRACION_WINDOWS10.md', 'MIGRACION_WINDOWS10.html', 'requirements-modern-lab.txt',
     'main.py', 'actualizar.py', 'asistente_actualizacion.py', 'instalar_visor.py', 'README.md', 'ACTUALIZACION.html',
     'requirements.txt', 'requirements-legacy.txt', 'requirements-laptop.txt',
     'INICIAR.bat', 'DIAGNOSTICO.bat', 'PROBAR.bat', 'INSTALAR_VISOR.bat', 'ACTUALIZAR.bat',

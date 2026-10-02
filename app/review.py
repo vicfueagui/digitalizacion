@@ -11,6 +11,15 @@ class Reviews:
     def __init__(self,store,role='Responsable'):
         self.s=store;self.db=store.db;self.ops=Operations(store,role);self.deliveries=Deliveries(store,role)
 
+    def check_integration(self,delivery):
+        import json
+        from .integrations import Integrations
+        row=self.deliveries.get(delivery);current=Integrations(self.s).current(row['trabajo_id'])
+        groups=json.loads(row['manifest']).get('integraciones',[])
+        if not groups and current['numero']==0:return  # Entrega anterior a este esquema.
+        if not groups or groups[-1]['id']!=current['id']:
+            raise ValueError('Esta entrega pertenece a una integración anterior y es de consulta. Genera la entrega completa de la integración actual para revisarla.')
+
     def state(self,work,state,quality,reason):
         w=self.s.one('trabajos',work);stamp=now()
         if w['estado']!=state:
@@ -22,6 +31,7 @@ class Reviews:
 
     def begin(self,delivery):
         self.ops.permit('revision');self.deliveries.verify(delivery);d=self.deliveries.get(delivery)
+        self.check_integration(delivery)
         ident=uuid.uuid4().hex
         with self.db:
             self.db.execute('INSERT INTO sesiones_revision(id,entrega_id,revisor,inicio) VALUES(?,?,?,?)',(ident,delivery,self.s.operador,now()))
@@ -35,6 +45,7 @@ class Reviews:
         if not sessions or sessions[0]['fin']:raise ValueError('La sesión no está abierta.')
         if kind not in OBSERVATION_TYPES or not description.strip() or not responsible.strip():raise ValueError('Indica tipo, descripción y responsable de corregir.')
         delivery=sessions[0]['entrega_id'];manifest=self.deliveries.verify(delivery)
+        self.check_integration(delivery)
         if version and not document:raise ValueError('Selecciona también el documento de la versión.')
         if document:
             match=next((i for i in manifest['items'] if i['document_asset_id']==document),None)
@@ -65,6 +76,7 @@ class Reviews:
         rows=self.s.rows('SELECT * FROM observaciones_revision WHERE id=?',(ident,))
         if not rows or not response.strip():raise ValueError('Indica la observación y respuesta/evidencia.')
         old=rows[0];origin=self.deliveries.get(old['entrega_detectada']);work=origin['trabajo_id']
+        self.check_integration(origin['id'])
         transitions={'Abierta':['En corrección','Resuelta','Anulada'],'En corrección':['Resuelta','Anulada'],'Resuelta':['Validada','Abierta','Anulada'],'Validada':['Abierta'],'Anulada':['Abierta']}
         if state not in transitions.get(old['estado'],[]):raise ValueError('Transición de observación inválida.')
         if state=='Resuelta':
@@ -91,12 +103,21 @@ class Reviews:
         self.ops.permit('aprobar')
         if not reason.strip():raise ValueError('Indica evidencia de la aprobación.')
         d=self.deliveries.get(delivery);work=d['trabajo_id'];self.deliveries.verify(delivery)
+        self.check_integration(delivery)
         latest=self.s.rows("SELECT id FROM entregas WHERE trabajo_id=? AND estado NOT IN ('Preparando','Incompleta') ORDER BY numero DESC LIMIT 1",(work,))
         if not latest or latest[0]['id']!=delivery:raise ValueError('Solo puede aprobarse la entrega más reciente del ciclo.')
         if not self.s.rows('SELECT id FROM sesiones_revision WHERE entrega_id=?',(delivery,)):raise ValueError('Abre la sesión de revisión de esta entrega antes de aprobar.')
         report=self.deliveries.validate(work,final=True,delivery=delivery)
         if report['resultado'] not in ('OK','OK con advertencias'):raise ValueError('Aprobación bloqueada: '+'; '.join(i['mensaje'] for i in report['problemas']))
         if content_hash(report['items'])!=d['inventario_hash']:raise ValueError('El inventario actual cambió. Genera y revisa una nueva entrega.')
+        # Las entregas previas a 0.7 conservan su formato. Las nuevas incluyen
+        # conteos y procedencia, que también deben coincidir con lo aprobado.
+        import json
+        from .integrations import Integrations
+        manifest=json.loads(d['manifest']);integrations=Integrations(self.s)
+        if 'integraciones' in manifest:
+            if manifest['integraciones']!=integrations.manifest(work) or manifest['totales_acumulados']!=integrations.totals(work) or manifest.get('nombre_completo')!=integrations.context(work)['nombre']:
+                raise ValueError('Cambió el nombre, conteo o contexto de integración. Genera y revisa una nueva entrega completa.')
         with self.db:
             self.db.execute("UPDATE entregas SET estado='Aprobada' WHERE id=?",(delivery,))
             self.db.execute("UPDATE sesiones_revision SET estado='Aprobada',fin=? WHERE entrega_id=? AND fin IS NULL",(now(),delivery))

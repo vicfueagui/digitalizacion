@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "revision": "2026-10-02; resumen y AGENTS revisados completos; otras fuentes omitidas del respaldo de codigo",
+  "criterio": "No renovar sin revision humana integral",
+  "revisados": {
+    "CONTEXTO_CHATGPT.md": "e140b6de93cf05b086e321904f5e798230ebf24e0e01e1fea96392d4c99cf264",
+    "AGENTS.md": "fcafc3063f7bc1c6014112df902c1ff910ad92ad021f49621e69385dee9247d4"
+  }
+}

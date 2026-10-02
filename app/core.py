@@ -157,9 +157,12 @@ class Store:
     def works(self, texto='', folio='', estado='', desde='', hasta='', digitalizador='', activos=True,partial=False):
         # Elegir el principal sobre TODA la identidad antes de aplicar filtros.
         rows=self.rows('''SELECT t.*,f.numero AS folio,p.nombre,f.area_origen,pi.validacion AS recepcion,
-            pi.custodia,COALESCE(a.total_tiff,0) AS total_tiff,COALESCE(a.total_paginas,0) AS total_paginas
+            pi.custodia,COALESCE(a.total_tiff,0) AS total_tiff,COALESCE(a.total_paginas,0) AS total_paginas,
+            i.numero AS integracion,fi.numero AS folio_integracion,i.recibido AS recibido_integracion,
+            (SELECT SUM(COALESCE(fisicos,0)) FROM integraciones WHERE trabajo_id=t.id) AS hojas_confirmadas
             FROM trabajos t JOIN folios f ON f.id=t.folio_id JOIN personas p ON p.curp=t.curp
-            LEFT JOIN prestamo_items pi ON pi.id=t.prestamo_item_id
+            LEFT JOIN integraciones i ON i.id=t.integracion_actual_id LEFT JOIN folios fi ON fi.id=i.folio_id
+            LEFT JOIN prestamo_items pi ON pi.id=i.prestamo_item_id
             LEFT JOIN (SELECT trabajo_id,COUNT(*) AS total_tiff,SUM(paginas) AS total_paginas FROM archivos_tiff WHERE activo=1 GROUP BY trabajo_id) a ON a.trabajo_id=t.id ORDER BY t.id''')
         groups={}
         for row in rows:groups.setdefault((row['curp'].strip().upper(),row['legajo']),[]).append(row)
@@ -171,13 +174,14 @@ class Store:
             from .directory import normalized
             if texto and normalized(texto) not in normalized(chosen['curp']+' '+chosen['nombre']):continue
             # Folio encuentra también asignaciones históricas sin cambiar el principal.
-            if folio and not any(normalized(folio) in normalized(r['folio']) if partial else r['folio']==folio for r in records):continue
+            associated_folios=[r['numero'] for r in self.rows('SELECT DISTINCT f.numero FROM integraciones i JOIN folios f ON f.id=i.folio_id JOIN trabajos t ON t.id=i.trabajo_id WHERE t.curp=? AND t.legajo=?',key)]
+            if folio and not any(normalized(folio) in normalized(f) if partial else f==folio for f in associated_folios):continue
             if estado and chosen['estado']!=estado:continue
             if digitalizador and not (normalized(digitalizador) in normalized(chosen['digitalizador']) if partial else chosen['digitalizador']==digitalizador):continue
             if desde and (not chosen['recibido'] or chosen['recibido']<date(desde)):continue
             if hasta and (not chosen['recibido'] or chosen['recibido']>date(hasta)):continue
             chosen=dict(chosen);chosen['registros']=len(records);chosen['ids_asociados']=','.join(str(r['id']) for r in records)
-            chosen['folios_asociados']=' / '.join(dict.fromkeys(r['folio'] for r in records))
+            chosen['folios_asociados']=' / '.join(associated_folios)
             result.append(chosen)
         return sorted(result,key=lambda r:(r['curp'],r['legajo']))
 
@@ -234,6 +238,7 @@ class Store:
         with self.db:
             self.check_count_open(ident)
             rowid=self.db.execute('INSERT INTO conteos(trabajo_id,cantidad,nota,creado) VALUES(?,?,?,?)',(ident,cantidad,nota,now())).lastrowid
+            self.dirty_count(ident)
             self.audit('conteos',rowid,'alta',None,self.one('conteos',rowid),'Captura de bloque')
         return rowid
 
@@ -245,12 +250,20 @@ class Store:
     def edit_count(self, ident, cantidad, motivo, remove=False):
         with self.db:
             old=self.one('conteos',ident); self.check_count_open(old['trabajo_id'])
+            if old['integracion_id']!=self.one('trabajos',old['trabajo_id'])['integracion_actual_id']:
+                raise ValueError('El bloque pertenece a una integración anterior; su conteo histórico se conserva.')
             cantidad=integer(cantidad,1)
             self.db.execute('UPDATE conteos SET cantidad=?,activo=? WHERE id=?',(cantidad,0 if remove else 1,ident))
+            self.dirty_count(old['trabajo_id'])
             self.audit('conteos',ident,'anular' if remove else 'corregir',old,self.one('conteos',ident),motivo)
 
     def count_total(self, ident):
-        return self.db.execute('SELECT SUM(cantidad) FROM conteos WHERE trabajo_id=? AND activo=1',(ident,)).fetchone()[0]
+        return self.db.execute('SELECT SUM(cantidad) FROM conteos WHERE trabajo_id=? AND activo=1 AND integracion_id=(SELECT integracion_actual_id FROM trabajos WHERE id=?)',(ident,ident)).fetchone()[0]
+
+    def dirty_count(self,ident):
+        self.db.execute('UPDATE integraciones SET fisicos=NULL WHERE id=(SELECT integracion_actual_id FROM trabajos WHERE id=?)',(ident,))
+        self.db.execute('UPDATE trabajos SET fisicos=NULL WHERE id=?',(ident,))
+        self.invalidate_inventory(ident,'Bloques modificados: confirmar nuevamente el conteo')
 
     def confirm_count(self, ident):
         with self.db:
@@ -258,13 +271,18 @@ class Store:
             before=self.one('trabajos',ident); total=self.count_total(ident)
             if total is None:
                 raise ValueError('Captura al menos un bloque antes de confirmar.')
-            if before['fuera_broche']>total:
+            from .integrations import Integrations
+            integrations=Integrations(self);current=integrations.current(ident)
+            cumulative=total+sum(r['fisicos'] or 0 for r in integrations.list(ident) if r['id']!=current['id'])
+            if before['fuera_broche']>cumulative:
                 raise ValueError('Las hojas fuera del broche superan el conteo.')
-            self.db.execute('UPDATE trabajos SET fisicos=? WHERE id=?',(total,ident))
-            if before['fisicos']!=total and self.rows('SELECT id FROM ejecuciones WHERE trabajo_id=? LIMIT 1',(ident,)):
+            self.db.execute('UPDATE integraciones SET fisicos=? WHERE id=?',(total,current['id']))
+            cumulative=integrations.totals(ident)['hojas_totales']
+            self.db.execute('UPDATE trabajos SET fisicos=? WHERE id=?',(cumulative,ident))
+            if before['fisicos']!=cumulative and self.rows('SELECT id FROM ejecuciones WHERE trabajo_id=? LIMIT 1',(ident,)):
                 self.invalidate_inventory(ident,'Cambió el conteo físico: regenerar el reporte')
             self.audit('trabajos',ident,'confirmar conteo',before,self.one('trabajos',ident),'Suma de bloques activos; incluye hojas fuera del broche')
-        return total
+        return cumulative
 
     def save_catalog(self, tipo, codigo, carpeta, titulo, descripcion='', accion='', ident=None, motivo='Alta de catálogo'):
         codigo=codigo.strip().upper(); titulo=titulo.strip()

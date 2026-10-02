@@ -14,8 +14,6 @@ from app.manifests import checked_files
 
 
 def build(destination):
-    from tools.build_docs import build as build_docs
-    build_docs()
     candidates = list(ROOT.iterdir())
     for folder in ('app','tests','tools','docs','instaladores'):
         candidates.extend((ROOT/folder).iterdir())

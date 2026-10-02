@@ -6,9 +6,9 @@ from tkinter import font as tkfont
 from .core import STATES
 from .dashboard import Dashboard
 
-INK='#173c4c'
-MUTED='#456170'
-PAPER='#f5f8fa'
+INK='#50252A'
+MUTED='#57585B'
+PAPER='#F6F3F0'
 
 
 def number(value):return '{:,}'.format(value).replace(',',' ')
@@ -19,12 +19,14 @@ class BarChart(tk.Canvas):
     """Redibuja datos ya calculados al ajustar el tamaño; no consulta la base."""
     def __init__(self,parent,on_select):
         super().__init__(parent,background=PAPER,highlightthickness=0,height=240,takefocus=True)
+        from .theme import fonts
+        self.typography=fonts(self)
         self.rows=[];self.on_select=on_select;self.job=None;self.focus_row=0;self.regions=[]
         self.bind('<Configure>',lambda e:self.schedule())
         self.bind('<Button-1>',self.choose);self.bind('<Return>',self.enter)
         self.bind('<Down>',lambda e:self.move(1));self.bind('<Up>',lambda e:self.move(-1))
         self.bind('<FocusIn>',lambda e:self.schedule());self.bind('<FocusOut>',lambda e:self.schedule())
-    def set_rows(self,rows):self.rows=rows;self.schedule()
+    def set_rows(self,rows):self.rows=rows;self.focus_row=max(0,min(self.focus_row,len(rows)-1));self.schedule()
     def schedule(self):
         if self.job:self.after_cancel(self.job)
         self.job=self.after_idle(self.draw)
@@ -34,15 +36,15 @@ class BarChart(tk.Canvas):
         if not self.rows:return
         step=min(40,(height-10)/len(self.rows));label_width=min(140,width*.36);right=width-10
         # Cifra y porcentaje ocupan una banda propia: nunca quedan encima de la barra.
-        value_font=tkfont.Font(self,font=('TkDefaultFont',10,'bold'))
+        value_font=self.typography['AppStrongFont']
         value_width=max(value_font.measure('{} · {}'.format(number(r['value']),pct(r['percent']))) for r in self.rows)
         bar_left=label_width+10;bar_right=max(bar_left+10,right-max(105,value_width+10))
         for i,row in enumerate(self.rows):
             y=8+i*step;total=row['total'];ratio=row['value']/total if total else 0
-            self.create_text(8,y+step/2,text=row['label'],anchor='w',width=label_width-8,fill=INK,font=('TkDefaultFont',10),tags=('label',))
+            self.create_text(8,y+step/2,text=row['label'],anchor='w',width=label_width-8,fill=INK,font='AppBodyFont',tags=('label',))
             self.create_rectangle(bar_left,y+step/2-6,bar_right,y+step/2+6,fill='#dce5eb',outline='')
             if ratio:self.create_rectangle(bar_left,y+step/2-6,bar_left+(bar_right-bar_left)*ratio,y+step/2+6,fill=row['color'],outline='')
-            self.create_text(right,y+step/2,text='{} · {}'.format(number(row['value']),pct(row['percent'])),anchor='e',fill=INK,font=('TkDefaultFont',10,'bold'),tags=('value',))
+            self.create_text(right,y+step/2,text='{} · {}'.format(number(row['value']),pct(row['percent'])),anchor='e',fill=INK,font='AppStrongFont',tags=('value',))
             if self.focus_get()==self and i==self.focus_row:self.create_rectangle(3,y+1,width-3,y+step-1,outline='#267e78',dash=(2,2),tags=('focus',))
             self.regions.append((y,y+step))
     def choose(self,event):
@@ -80,6 +82,8 @@ class DashboardPanel(ttk.Frame):
         self.tabs=ttk.Notebook(self);self.tabs.pack(fill='both',expand=True)
         overview=ttk.Frame(self.tabs);details=ttk.Frame(self.tabs,padding=6);metrics=ttk.Frame(self.tabs,padding=6)
         for title,frame in [('Resumen',overview),('Por folio / digitalizador',details),('Todos los indicadores',metrics)]:self.tabs.add(frame,text=title)
+        from .analytics_ui import CubePanel
+        self.cube=CubePanel(self.tabs,app,self);self.tabs.add(self.cube,text='Cubo BI')
         self.scroll=tk.Canvas(overview,background=PAPER,highlightthickness=0);yscroll=ttk.Scrollbar(overview,command=self.scroll.yview)
         self.scroll.configure(yscrollcommand=yscroll.set);yscroll.pack(side='right',fill='y');self.scroll.pack(fill='both',expand=True)
         self.body=ttk.Frame(self.scroll,padding=8);self.body_id=self.scroll.create_window(0,0,window=self.body,anchor='nw')
@@ -88,7 +92,7 @@ class DashboardPanel(ttk.Frame):
         cards=ttk.Frame(self.body);cards.pack(fill='x');self.cards={}
         for i,(key,title) in enumerate([('Trabajos activos','Expedientes vigentes'),('CURP distintas','CURP distintas'),('Archivos TIFF','TIFF activos'),('Páginas conocidas','Páginas registradas')]):
             card=ttk.LabelFrame(cards,text=title,padding=(10,5));card.grid(row=0,column=i,sticky='nsew',padx=3);cards.columnconfigure(i,weight=1,uniform='cards')
-            value=tk.StringVar(value='—');ttk.Label(card,textvariable=value,font=('TkDefaultFont',23,'bold'),foreground=INK).pack(anchor='w');self.cards[key]=value
+            value=tk.StringVar(value='—');ttk.Label(card,textvariable=value,style='Metric.TLabel',foreground=INK).pack(anchor='w');self.cards[key]=value
         charts=ttk.Frame(self.body);charts.pack(fill='both',expand=True,pady=8)
         for i,(title,key) in enumerate([('Etapas del proceso','stages'),('Cobertura del trabajo','coverage')]):
             frame=ttk.LabelFrame(charts,text=title,padding=4);frame.grid(row=0,column=i,sticky='nsew',padx=3);charts.columnconfigure(i,weight=1,uniform='charts')
@@ -131,6 +135,7 @@ class DashboardPanel(ttk.Frame):
 
     def refresh(self,works):
         filters={k:v.get().strip() for k,v in self.app.filters.items()};self.data=self.service.snapshot(works,filters)
+        self.cube.refresh(works)
         for key,var in self.cards.items():var.set(number(self.data['metrica'][key]))
         self.stages.set_rows(self.data['etapas']);self.coverage.set_rows(self.data['cobertura'])
         total=len(self.data['expedientes']);stamp=self.data['generado'][11:19]

@@ -16,7 +16,7 @@ main{max-width:1100px;margin:auto;padding:26px;background:white}h1{line-height:1
 h2{margin:2.3em 0 .6em;border-top:3px solid #167d91;padding-top:.7em;line-height:1.3}
 h3{margin:1.7em 0 .4em}a{color:#075f85;text-decoration:underline}a:focus,button:focus{outline:3px solid #bf6200}
 nav{background:#eef6f8;padding:20px;border-left:5px solid #167d91}nav ul{padding-left:22px;margin:0}
-nav li{margin:4px 0;break-inside:avoid}nav ul{columns:2;column-gap:28px}li{margin:8px 0}p{margin:.85em 0}strong{color:#102f40}
+nav li{margin:4px 0}li{margin:8px 0}p{margin:.85em 0}strong{color:#102f40}
 pre{white-space:pre-wrap;word-wrap:break-word;padding:16px;border:1px solid #cbd9df;background:#f2f5f7}
 code{font-family:Consolas,Menlo,monospace;font-size:.9em;background:#f2f5f7;overflow-wrap:anywhere}
 .table{overflow-x:auto}table{border-collapse:collapse;width:100%;margin:15px 0;font-size:.94em}
@@ -24,7 +24,7 @@ th,td{border:1px solid #bbcdd5;text-align:left;vertical-align:top;padding:10px}t
 tr:nth-child(even){background:#f8fafb}.intro{padding:12px 18px;border-left:5px solid #bd7900;background:#fff8e8}
 button{font:inherit;border:1px solid #9bb9c8;background:white;color:#123b50;padding:7px 14px;cursor:pointer}
 footer{margin:25px 0;font-size:.9em;color:#456} .back{display:block;margin-top:14px;font-size:.88em}
-@media(max-width:800px){nav ul{columns:1}}@media(max-width:680px){main{padding:16px}body{font-size:16px}header{padding:20px}h1{font-size:1.65em}}
+@media(max-width:680px){main{padding:16px}body{font-size:16px}header{padding:20px}h1{font-size:1.65em}}
 @media print{body,main{background:white;font-size:11pt}header{background:white;color:black;padding:0}
 header a{color:black}main{max-width:none;padding:0}nav,button,.back{display:none}h2{break-after:avoid}
 pre,table{font-size:9pt}tr{break-inside:avoid}a{color:black}h2{margin-top:24px}}
@@ -61,8 +61,7 @@ def render(markdown, title, home, manual):
             level = len(match[1]); heading = match[2]; anchor = slug(heading)
             if anchor in seen: raise ValueError('Título duplicado: '+heading)
             seen.add(anchor)
-            if level == 2 and toc: content.append('<a class="back" href="#inicio">Volver al índice</a>')
-            if level != 1: content.append('<h{0} id="{1}">{2}</h{0}>'.format(level,anchor,inline(heading)))
+            content.append('<h{0} id="{1}">{2}</h{0}>'.format(level,anchor,inline(heading)))
             if level == 2: toc.append('<li><a href="#'+anchor+'">'+html.escape(heading)+'</a></li>')
             i += 1; continue
         if line.startswith('|'):
@@ -88,13 +87,13 @@ def render(markdown, title, home, manual):
     return '''<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>'''+html.escape(title)+'''</title><style>'''+STYLE+'''</style></head>
-<body id="inicio"><header>Digitalización · Documentación 0.6.3<h1>'''+html.escape(title)+'''</h1>
+<body id="inicio"><header>Digitalización · Documentación 0.6.2<br>
 <a href="'''+home+'''">Cómo actualizar</a> · <a href="'''+manual+'''">Manual de uso</a>
 </header><main><p class="intro">Guía local: funciona sin internet. Busca una palabra con Ctrl+F (Mac: Cmd+F).
 Para imprimir, usa Ctrl+P (Mac: Cmd+P). Si tu equipo ofrece guardar PDF, puedes elegirlo allí.</p>
 <nav aria-label="Índice"><strong>Ir directamente a…</strong><ul>'''+''.join(toc)+'''</ul></nav>
 '''+ '\n'.join(content)+'''<a class="back" href="#inicio">Volver al índice</a>
-<footer>Documentación para el kit 0.6.3. Los ejemplos son ficticios. La comprobación local en Mac no sustituye la aceptación en Windows 7 y Windows 10.</footer>
+<footer>Documentación para 0.6.2. Los ejemplos son ficticios. La comprobación local en Mac no sustituye el ensayo en Windows 7.</footer>
 </main></body></html>
 '''
 
@@ -102,7 +101,6 @@ Para imprimir, usa Ctrl+P (Mac: Cmd+P). Si tu equipo ofrece guardar PDF, puedes 
 def build():
     for source, target, title, home, manual in (
         ('docs/ACTUALIZACION.md','ACTUALIZACION.html','Actualizar sin perder datos','ACTUALIZACION.html','docs/MANUAL_USUARIO.html'),
-        ('MIGRACION_WINDOWS10.md','MIGRACION_WINDOWS10.html','Migrar a Windows 10 paso a paso','ACTUALIZACION.html','docs/MANUAL_USUARIO.html'),
         ('docs/MANUAL_USUARIO.md','docs/MANUAL_USUARIO.html','Manual de uso de Digitalización','../ACTUALIZACION.html','MANUAL_USUARIO.html')):
         text = (ROOT/source).read_text(encoding='utf-8')
         # La fuente Markdown vive en docs; la guía de actualización se publica en la raíz.

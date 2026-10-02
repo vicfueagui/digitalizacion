@@ -30,7 +30,7 @@ class CodingUIV3:
         self.canvas.bind('<Button-5>',lambda e:self.wheel_linux(e,-1))
         self.bind('<KeyRelease>',self.key_release)
         self.bind('<FocusOut>',self.focus_out,add='+')
-        self.after(120,self.restore_layout)
+        self.layout_job=self.after(120,self.restore_layout)
 
     def focus_out(self,event):
         self.numeric.clear();self.pressed.clear()
@@ -50,6 +50,7 @@ class CodingUIV3:
         with self.parent.store.db:self.parent.store.db.execute("INSERT OR REPLACE INTO meta VALUES('visor_anchos',?)",(json.dumps(widths),))
 
     def restore_layout(self):
+        self.layout_job=None
         self.restoring_layout=True
         self.panels();self.update_idletasks()
         saved=self.parent.store.rows("SELECT value FROM meta WHERE key='visor_anchos'")
@@ -127,7 +128,12 @@ class CodingUIV3:
             if digit is not None:self.info.set(self.numeric.digit(digit,bool(event.state&1))+' · suelta Ctrl para aplicar');return 'break'
             if key=='s':self.safe(self.save);return 'break'
             if key=='z':self.safe(self.undo);return 'break'
-        actions={'f2':self.rename,'f7':lambda:self.navigate(-1),'f8':lambda:self.navigate(1),'prior':lambda:self.page_move(-1),'next':lambda:self.page_move(1),'f11':self.only_image}
+            actions={'o':self.import_folder if event.state&1 else self.import_files,'a':self.files_table.select_all,'f':self.search_entry.focus_set}
+            if key=='r' and event.state&1:actions['r']=self.removed_view
+            if key in actions:self.numeric.clear();self.safe(actions[key]);return 'break'
+        if event.state&8 and key in ('left','right'):
+            self.safe(lambda:self.add_op(('rotate',90 if key=='left' else -90)));return 'break'
+        actions={'f1':self.parent.help,'delete':self.remove_file,'plus':lambda:self.zoom_by(1.2),'equal':lambda:self.zoom_by(1.2),'minus':lambda:self.zoom_by(1/1.2),'f':self.fit,'f2':self.rename,'f7':lambda:self.navigate(-1),'f8':lambda:self.navigate(1),'prior':lambda:self.page_move(-1),'next':lambda:self.page_move(1),'f11':self.only_image}
         if key in actions:self.numeric.clear();self.safe(actions[key]);return 'break'
 
     def key_release(self,event):
@@ -150,6 +156,7 @@ class CodingUIV3:
     def shortcuts(self):
         from .ui import Table,Form
         win=tk.Toplevel(self);win.title('Atajos numéricos · suelta Ctrl para aplicar');win.geometry('900x550')
+        ttk.Label(win,text='Acciones: Ctrl+O importar · Ctrl+Shift+O carpeta · Ctrl+A seleccionar TIFF visibles · Supr retirar\nCtrl+Shift+R recuperar · Ctrl+F catálogo · Ctrl+S guardar · Ctrl+Z deshacer · F2 renombrar\nF7/F8 TIFF · RePág/AvPág página · Alt+←/→ girar · +/- zoom · F ajustar · F11 imagen · F1 ayuda',padding=8,wraplength=870).pack(fill='x')
         table=Table(win,['id','codigo','combinacion','numero','titulo']);table.pack(fill='both',expand=True);table.fill(self.service.catalog())
         def edit():
             cid=table.selected();c=next(c for c in self.service.catalog() if c['id']==cid)
@@ -175,20 +182,35 @@ class CodingUIV3:
         self.refresh_files();self.first_file();self.parent.refresh()
 
     def remove_file(self):
-        row=self.require()
+        ids=self.files_table.selected_ids()
+        if not ids:raise ValueError('Selecciona los TIFF que deseas retirar.')
         if not self.pending():return
-        reason=simpledialog.askstring('Retirar TIFF','Motivo. Se retirará de la entrega y de las métricas; se conservará en Retirados para poder recuperarlo.',parent=self)
-        if reason:self.service.exclude(row['id'],reason);self.reset_current()
+        reason=simpledialog.askstring('Retirar {} TIFF'.format(len(ids)),'Motivo. Se excluirán de la siguiente entrega y se conservarán en Retirados.',parent=self)
+        if reason and messagebox.askyesno('Confirmar selección','¿Retirar los {} TIFF seleccionados?\nIDs: {}'.format(len(ids),', '.join(map(str,ids[:30]))),parent=self):
+            from .batch_tiff import BatchTiff
+            result=BatchTiff(self.service).run(self.work,ids,'retirar',reason);self.reset_current();self.batch_result(result)
+
+    def batch_result(self,result):
+        message='Completados: {}\nPendientes: {}\n{}'.format(len(result['completados']),len(result['pendientes']),result['error'] or 'Operación completada.')
+        if result['pendientes']:message+='\nRevisa Recuperar operación si hay un diario pendiente. Luego selecciona solo los TIFF pendientes y repite.\nIDs pendientes: '+', '.join(map(str,result['pendientes'][:30]))
+        messagebox.showinfo('Resultado del lote · '+result['estado'],message,parent=self)
 
     def removed_view(self):
         from .ui import Table
         win=tk.Toplevel(self);win.title('TIFF retirados (excluidos del inventario)');win.geometry('950x500')
         table=Table(win,['id','ruta','paginas','codigo','estado']);table.pack(fill='both',expand=True)
+        table.tree.configure(selectmode='extended')
         def refresh():table.fill(self.parent.store.rows('SELECT * FROM archivos_tiff WHERE trabajo_id=? AND activo=0',(self.work,)))
         def restore():
+            ids=[int(i) for i in table.tree.selection()]
+            if not ids:raise ValueError('Selecciona uno o varios TIFF retirados.')
+            if not self.pending():return
             reason=simpledialog.askstring('Restaurar','Motivo:',parent=win)
-            if reason:self.service.restore_removed(table.selected(),reason);refresh();self.refresh_files();self.parent.refresh()
-        self.button(win,'Restaurar',restore);refresh()
+            if reason and messagebox.askyesno('Confirmar recuperación','¿Recuperar {} TIFF seleccionados?'.format(len(ids)),parent=win):
+                from .batch_tiff import BatchTiff
+                result=BatchTiff(self.service).run(self.work,ids,'recuperar',reason);refresh();self.refresh_files();self.parent.refresh();self.batch_result(result)
+        self.button(win,'Seleccionar todos',lambda:table.tree.selection_set(table.tree.get_children()))
+        self.button(win,'Recuperar seleccionados',restore);refresh()
 
     def corrections_view(self):
         from .ui import Table,Form

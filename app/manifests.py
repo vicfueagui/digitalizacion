@@ -5,11 +5,6 @@ import unicodedata
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
-def sqlite_sidecar(name):
-    """Decisión léxica: nunca hacer resolve/stat sobre auxiliares bloqueados."""
-    return str(name).lower().endswith(('-wal', '-shm', '-journal'))
-
-
 def checked_files(files, allowed):
     if not isinstance(files, dict) or not files:
         raise ValueError('El manifiesto debe contener una lista de archivos con huellas SHA-256.')

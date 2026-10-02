@@ -4,10 +4,9 @@ import json
 import shutil
 import sqlite3
 import uuid
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from .workspace import Workspace
-from .manifests import checked_files, plain_path, sqlite_sidecar
-from .portability import active_relative, normalize_operations
+from .manifests import checked_files, plain_path
 
 
 def sha256(path):
@@ -45,7 +44,31 @@ def snapshot(connection, target):
     check_database(target)
 
 
-def inventory_files(database, workspace, normalize=False, historical_roots=(), changes=None):
+def _normalize_operation_path(workspace, value):
+    """Normalizar rutas históricas internas sin exigir que el proyecto antiguo exista.
+
+    Versiones anteriores de la aplicación guardaron ``source``/``target`` y campos
+    equivalentes como rutas absolutas del espacio de trabajo de aquel momento. Esos
+    valores son auditoría, no referencias activas. Si la ruta absoluta contiene el
+    ancla ``datos`` o ``reportes``, conservar su parte portable dentro del proyecto
+    actual. Rutas relativas siguen pasando por las validaciones normales y una ruta
+    absoluta ajena sin ancla reconocible continúa siendo rechazada.
+    """
+    try:
+        return workspace.relative(value)
+    except ValueError as original:
+        win = PureWindowsPath(str(value))
+        if not win.drive:
+            raise
+        parts = list(win.parts)
+        for index, part in enumerate(parts):
+            if part.casefold() in ('datos', 'reportes'):
+                candidate = '/'.join(parts[index:])
+                return workspace.relative(candidate)
+        raise original
+
+
+def inventory_files(database, workspace, normalize=False):
     """Validar cada referencia; normalizar SOLO rutas de la copia exportada."""
     uri = Path(database).resolve().as_uri() + ('?mode=rw' if normalize else '?mode=ro')
     db = sqlite3.connect(uri, uri=True)
@@ -59,24 +82,24 @@ def inventory_files(database, workspace, normalize=False, historical_roots=(), c
             if table not in tables: continue
             for field, hashfield in fields:
                 for ident, name, expected in db.execute('SELECT id,'+field+','+hashfield+' FROM '+table).fetchall():
-                    relative = active_relative(workspace,name)
-                    path = plain_path(workspace.root,relative)
-                    references.add(relative)
+                    path = workspace.path(name)
+                    references.add(workspace.relative(path))
                     if not path.is_file() or sha256(path) != expected:
                         raise ValueError('Referencia TIFF faltante o alterada: '+table+' ID '+str(ident)+' / '+field)
                     if normalize:
-                        if name!=relative:
-                            db.execute('UPDATE '+table+' SET '+field+'=? WHERE id=?', (relative, ident))
-                            if changes is not None:changes.append({'tabla':table,'id':ident,'campo':field,'antes':name,'despues':relative})
+                        db.execute('UPDATE '+table+' SET '+field+'=? WHERE id=?', (workspace.relative(path), ident))
         if normalize and 'operaciones_tiff' in tables:
-            normalize_operations(db,workspace,historical_roots,changes)
+            for ident, detail in db.execute('SELECT id,detalle FROM operaciones_tiff').fetchall():
+                obj = json.loads(detail)
+                for key in ('antes','despues','original','copia','respaldo','source','target','destino','ruta'):
+                    if key in obj and isinstance(obj[key],str):
+                        obj[key] = _normalize_operation_path(workspace, obj[key])
+                db.execute('UPDATE operaciones_tiff SET detalle=? WHERE id=?',(json.dumps(obj,ensure_ascii=False),ident))
         if 'entregas' in tables:
             from .delivery import content_hash
             for ident,name,state,expected,stored in db.execute('SELECT id,ruta,estado,manifest_hash,manifest FROM entregas').fetchall():
-                relative=active_relative(workspace,name);folder=plain_path(workspace.root,relative)
-                if normalize and name!=relative:
-                    db.execute('UPDATE entregas SET ruta=? WHERE id=?',(relative,ident))
-                    if changes is not None:changes.append({'tabla':'entregas','id':ident,'campo':'ruta','antes':name,'despues':relative})
+                folder=workspace.path(name)
+                if normalize:db.execute('UPDATE entregas SET ruta=? WHERE id=?',(workspace.relative(folder),ident))
                 if state in ('Preparando','Incompleta'):continue
                 if (folder/'INCOMPLETA.txt').exists():raise ValueError('Entrega publicada con marca incompleta: '+ident)
                 manifest=json.loads(plain_path(folder,'manifest.json').read_text(encoding='utf-8'))
@@ -94,7 +117,7 @@ def inventory_files(database, workspace, normalize=False, historical_roots=(), c
     return references
 
 
-def create_backup(store, destination=None, historical_roots=(), changes=None, exclude=None):
+def create_backup(store, destination=None):
     from .core import now
     target = Path(destination) if destination else store.workspace.backups / ('completo_' + uuid.uuid4().hex)
     target = target.resolve()
@@ -107,7 +130,7 @@ def create_backup(store, destination=None, historical_roots=(), changes=None, ex
     try:
         database = target / 'datos' / 'digitalizacion.sqlite3'
         snapshot(store.db, database)
-        inventory_files(database, store.workspace, normalize=True,historical_roots=historical_roots,changes=changes)
+        inventory_files(database, store.workspace, normalize=True)
         marker = store.workspace.path('DEMO.json')
         if marker.is_file():
             shutil.copy2(str(marker), str(target / 'DEMO.json'))
@@ -116,10 +139,9 @@ def create_backup(store, destination=None, historical_roots=(), changes=None, ex
             if not source.exists():
                 continue
             for path in source.rglob('*'):
-                if exclude and exclude(path.relative_to(store.workspace.root).as_posix()):continue
                 # Exclusión léxica ANTES de resolver/stat: Windows puede bloquear
                 # -shm/-wal abiertos. La base consistente ya procede de backup().
-                if path == store.path or path.suffix in ('.sqlite3', '.sqlite', '.db') or sqlite_sidecar(path.name):
+                if path == store.path or path.suffix in ('.sqlite3', '.sqlite', '.db') or path.name.endswith(('-wal', '-shm', '-journal')):
                     continue
                 # Mantener las validaciones de enlaces/junctions para lo incluido.
                 path = plain_path(store.workspace.root, path.relative_to(store.workspace.root).as_posix())

@@ -74,7 +74,7 @@ def replacement(service,old_id,new_id):
     s.db.execute("UPDATE documentos_logicos SET estado='Histórico' WHERE id=?",(new['documento_id'],))
     s.db.execute("UPDATE versiones_archivo SET estado='Histórico' WHERE id=?",(new['version_id'],))
     ident=register_version(s,old['documento_id'],source['ruta'],source['sha256'],source['bytes'],source['paginas'],'Reescaneo completo confirmado',old['version_id'],source=new_id)
-    s.db.execute('UPDATE archivos_tiff SET documento_id=?,version_id=? WHERE id=?',(old['documento_id'],ident,new_id))
+    s.db.execute('UPDATE archivos_tiff SET documento_id=?,version_id=?,integracion_id=? WHERE id=?',(old['documento_id'],ident,old['integracion_id'],new_id))
     s.db.execute("UPDATE versiones_archivo SET estado='Supersedido' WHERE id=?",(old['version_id'],))
     s.db.execute("UPDATE documentos_logicos SET estado='Activo' WHERE id=?",(old['documento_id'],))
 

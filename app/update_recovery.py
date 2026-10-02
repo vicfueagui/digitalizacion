@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 from .backup import sha256
-from .manifests import checked_files, plain_path, sqlite_sidecar
+from .manifests import checked_files, plain_path
 from .release import allowed
 from .workspace import Workspace, WorkspaceLock
 
@@ -46,9 +46,13 @@ def data_fingerprint(workspace):
         source = plain_path(workspace.root, folder)
         if not source.exists(): continue
         for path in source.rglob('*'):
-            if path == workspace.database or sqlite_sidecar(path.name):
-                continue
             name = path.relative_to(workspace.root).as_posix()
+            # Exclusión léxica ANTES de resolver/stat: en Windows SQLite puede
+            # mantener -wal/-shm abiertos y Path.resolve() intenta abrirlos.
+            # La base ya se incluye mediante database_fingerprint(), que lee
+            # también los cambios confirmados que permanecen en WAL.
+            if path == workspace.database or path.name.endswith(('-wal', '-shm', '-journal')):
+                continue
             path = plain_path(workspace.root, name)
             if not path.is_file(): continue
             files[name] = sha256(path)

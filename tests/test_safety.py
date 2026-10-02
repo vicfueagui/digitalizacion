@@ -86,6 +86,45 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual(set(verify_backup(out)['files']),{'datos/digitalizacion.sqlite3','datos/evidencia.txt'})
         finally:s.db.close()
 
+    def test_recovery_fingerprint_excludes_sqlite_sidecars_before_resolving(self):
+        from app.manifests import plain_path
+        from app.update_recovery import data_fingerprint
+        s=Store(workspace=self.root/'live')
+        try:
+            s.db.execute('PRAGMA journal_mode=WAL');s.save_folio('WAL-HUELLA','')
+            visited=[]
+            def guarded(root,name):
+                visited.append(name)
+                if name.endswith(('-wal','-shm','-journal')):
+                    raise PermissionError('Windows bloquea el auxiliar SQLite')
+                return plain_path(root,name)
+            with patch('app.update_recovery.plain_path',side_effect=guarded):
+                fingerprint=data_fingerprint(s.workspace)
+            self.assertIn('database',fingerprint)
+            self.assertFalse(any(n.endswith(('-wal','-shm','-journal')) for n in visited))
+        finally:s.db.close()
+
+    def test_backup_normalizes_legacy_absolute_operation_paths(self):
+        s=Store(workspace=self.root/'live')
+        try:
+            detail=json.dumps({
+                'source': r'C:\\Users\\jose.quijano\\Documents\\project_archivoGeneral\\datos\\tiff\\trabajo_26\\entrada\\DP-10.tif',
+                'target': r'C:\\Users\\jose.quijano\\Documents\\project_archivoGeneral\\datos\\tiff\\trabajo_26\\CURP\\FEDERAL\\DP-10.tif',
+            })
+            with s.db:
+                s.db.execute('INSERT INTO operaciones_tiff(fecha,trabajo_id,archivo_id,tipo,estado,detalle) VALUES(?,?,?,?,?,?)',
+                             ('2026-09-21T14:28:43-06:00',26,None,'organizar','Completada',detail))
+            out=create_backup(s,self.root/'backup-legacy-paths')
+            db=sqlite3.connect(str(out/'datos/digitalizacion.sqlite3'))
+            try:
+                saved=json.loads(db.execute('SELECT detalle FROM operaciones_tiff').fetchone()[0])
+            finally:
+                db.close()
+            self.assertEqual(saved['source'],'datos/tiff/trabajo_26/entrada/DP-10.tif')
+            self.assertEqual(saved['target'],'datos/tiff/trabajo_26/CURP/FEDERAL/DP-10.tif')
+            verify_backup(out)
+        finally:s.db.close()
+
     def test_permission_error_on_included_file_still_stops_backup(self):
         from app.manifests import plain_path
         s=Store(workspace=self.root/'live')

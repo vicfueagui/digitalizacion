@@ -11,6 +11,7 @@ from .assets import canonical
 from .backup import sha256
 from .manifests import plain_path,checked_files
 from .operations import Operations
+from .integrations import Integrations
 
 
 def canonical_json(value):return json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'))
@@ -58,6 +59,8 @@ class Deliveries:
         catalogue=self.s.rows("SELECT codigo,carpeta,activo FROM catalogos WHERE tipo='documento' ORDER BY codigo")
         observed=self.s.rows('SELECT o.id,o.estado,o.bloqueante,o.entrega_resuelta FROM observaciones_revision o JOIN entregas e ON e.id=o.entrega_detectada WHERE e.trabajo_id=? ORDER BY o.id',(work,))
         return content_hash({'work':{k:w[k] for k in ('id','expediente_id','curp','legajo','folio_id','fisicos','digitalizador')},'files':records,'catalogue':catalogue,'observations':observed,'paths':extra,
+                             'integraciones':[{k:r[k] for k in ('id','numero','folio_id','prestamo_item_id','recibido','fisicos','referencia')} for r in Integrations(self.s).list(work)],
+                             'nombre':Integrations(self.s).context(work)['nombre'],
                              'corrections':self.s.rows('SELECT c.id,c.estado FROM correcciones_tiff c JOIN archivos_tiff a ON a.id=c.archivo_id WHERE a.trabajo_id=? ORDER BY c.id',(work,))})
 
     def inventory(self,work,final=False):
@@ -119,7 +122,7 @@ class Deliveries:
             if w['conciliacion_pendiente']:issue('BLOQUEANTE','conciliacion','El vínculo del ciclo histórico con el maestro requiere confirmación')
             if w['fisicos'] is None:issue('BLOQUEANTE','conteo','Conteo físico sin confirmar')
             if self.s.rows("SELECT id FROM incidencias WHERE trabajo_id=? AND estado='Abierta'",(work,)):issue('BLOQUEANTE','incidencia','Hay incidencias abiertas')
-            item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(w['prestamo_item_id'],))
+            item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(Integrations(self.s).current(work)['prestamo_item_id'],))
             if w['procedencia']!='Legado importado' and (not item or item[0]['validacion']!='Aceptado'):issue('BLOQUEANTE','recepcion','Recepción del préstamo no confirmada')
         levels={i['severidad'] for i in issues}
         result='BLOQUEANTE' if 'BLOQUEANTE' in levels else 'REQUIERE REVISIÓN' if 'REQUIERE REVISIÓN' in levels else 'OK con advertencias' if levels else 'OK'
@@ -152,6 +155,7 @@ class Deliveries:
         self.ops.permit('entrega')
         current=self.s.one('trabajos',work)
         if not current['activo'] or current['estado']=='Expediente cerrado':raise ValueError('Reactiva o reabre el ciclo con motivo antes de generar otra entrega.')
+        Integrations(self.s).check_delivery(work)
         report=self.validate(work)
         if report['resultado'] not in ('OK','OK con advertencias'):raise ValueError('Entrega bloqueada: '+'; '.join(i['mensaje'] for i in report['problemas']))
         w=self.s.one('trabajos',work);ident=uuid.uuid4().hex
@@ -172,7 +176,11 @@ class Deliveries:
             inventory_hash=content_hash(report['items'])
             manifest={'format':1,'expediente_id':w['expediente_id'],'curp':w['curp'],'legajo':w['legajo'],'ciclo_id':work,'entrega_id':ident,'numero':number,
                       'fecha':now(),'digitalizador':w['digitalizador'],'generado_por':self.s.operador,'estado':'Publicada para revisión','inventario_hash':inventory_hash,
-                      'advertencias':report['problemas'],'items':report['items']}
+                      'advertencias':report['problemas'],'items':report['items'],
+                      'nombre_completo':Integrations(self.s).context(work)['nombre'],
+                      'alcance':'Expediente completo actualizado',
+                      'integraciones':Integrations(self.s).manifest(work),
+                      'totales_acumulados':Integrations(self.s).totals(work)}
             manifest_hash=content_hash(manifest)
             with (root/'manifest.json').open('x',encoding='utf-8') as out:out.write(canonical_json(manifest))
             if self.basis(work)!=basis:raise ValueError('El inventario cambió durante la exportación. La entrega quedó incompleta.')

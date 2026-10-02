@@ -21,9 +21,13 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         self.chord=None;self.pressed=set();self.order=tk.StringVar(value='Fecha escaneo');self.desc=tk.BooleanVar();self.advance=tk.BooleanVar(value=True);self.original_view=tk.BooleanVar();self.crop_mode=tk.BooleanVar()
         w=parent.store.one('trabajos',work);folio=parent.store.one('folios',w['folio_id'])['numero']
         self.title('Codificar · {} · {} · legajo {}'.format(folio,w['curp'],w['legajo']))
+        from .integration_ui import heading
+        from .integrations import Integrations
+        self.title('Codificar · '+heading(parent.store,work))
         width=max(860,min(1380,self.winfo_screenwidth()-80));height=max(520,min(850,self.winfo_screenheight()-110))
         self.geometry('{}x{}'.format(width,height));self.minsize(860,520)
         self.protocol('WM_DELETE_WINDOW',self.close)
+        ttk.Label(self,text=heading(parent.store,work),style='Subtitle.TLabel',padding=5,wraplength=1200).pack(fill='x')
         style=ttk.Style(self);style.configure('Coding.TButton',padding=(5,2),width=0)
         self.header=FlowBar(self,padding=(4,2));self.header.pack(fill='x')
         self.menu_button(self.header,'Importar',[('Archivos TIFF…',self.import_files),('Carpeta…',self.import_folder)])
@@ -39,6 +43,12 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         combo=ttk.Combobox(ordering,textvariable=self.order,values=['Fecha escaneo','Fecha creación','Nombre','Código'],state='readonly',width=13);combo.pack(side='left',fill='x',expand=True,padx=3);combo.bind('<<ComboboxSelected>>',lambda e:self.refresh_files())
         ttk.Checkbutton(ordering,text='Desc.',variable=self.desc,command=self.refresh_files).pack(side='right')
         self.files_table=FileBrowser(left,self.service,self.select_file);self.files_table.pack(fill='both',expand=True)
+        self.integration_filter=tk.StringVar(value='Todo el expediente')
+        self.integration_filter_previous='Todo el expediente'
+        self.integration_choices={'Todo el expediente':None}
+        self.integration_choices.update({r['etiqueta']:r['id'] for r in Integrations(parent.store).list(work)})
+        filterbox=ttk.Combobox(left,textvariable=self.integration_filter,values=list(self.integration_choices),state='readonly')
+        filterbox.pack(fill='x',before=self.files_table,pady=4);filterbox.bind('<<ComboboxSelected>>',lambda e:self.safe(self.change_integration))
         center=ttk.Frame(pan);pan.add(center,minsize=300,stretch='always')
         self.page_label=tk.StringVar(value='Vista previa')
         title=ttk.Label(center,textvariable=self.page_label,anchor='center',padding=4);title.pack(fill='x')
@@ -63,6 +73,7 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         ttk.Label(right,text='Catálogo',font='TkHeadingFont').pack(anchor='w')
         searchbar=ttk.Frame(right);searchbar.pack(fill='x',pady=4);ttk.Label(searchbar,text='Buscar').pack(side='left')
         self.search=tk.StringVar();entry=ttk.Entry(searchbar,textvariable=self.search);entry.pack(side='left',fill='x',expand=True,padx=4);entry.bind('<KeyRelease>',lambda e:self.refresh_catalog())
+        self.search_entry=entry
         self.cat_table=Table(right,['id','codigo','atajo','titulo']);self.cat_table.pack(fill='both',expand=True)
         self.cat_table.tree.configure(displaycolumns=('codigo','atajo','titulo'))
         for name,size in [('codigo',65),('atajo',85),('titulo',130)]:self.cat_table.tree.column(name,width=size,minwidth=45,stretch=name=='titulo')
@@ -73,7 +84,7 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         self.info_label=ttk.Label(self,textvariable=self.info,anchor='w',padding=(6,3));self.info_label.pack(fill='x')
         self.bind('<KeyPress>',self.key_press);self.bind('<KeyRelease>',lambda e:self.pressed.discard(e.keysym.lower()))
         self.setup_v3(pan,left,center,right)
-        self.refresh_catalog();self.refresh_files();self.after(180,self.first_file)
+        self.refresh_catalog();self.refresh_files();self.first_job=self.after(180,self.first_file)
 
     def safe(self,fn):
         try:return fn()
@@ -91,18 +102,34 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         if self.current is None:raise ValueError('Selecciona un TIFF primero.')
         return self.service.file(self.current)
     def first_file(self):
+        self.first_job=None
         children=self.files_table.tree.get_children()
         if children:self.files_table.tree.selection_set(children[0])
     def refresh_files(self):
         self.loading=True
         rows=self.service.files(self.work,self.order.get(),self.desc.get())
+        selected=self.files_table.tree.selection()
+        group=self.integration_choices[self.integration_filter.get()]
+        rows=[r for r in rows if group is None or r['integracion_id']==group]
+        labels={v:k for k,v in self.integration_choices.items()}
         for r in rows:
+            r['integracion']=labels.get(r['integracion_id'],'Sin asociación')
             corrections=self.parent.store.rows("SELECT id FROM correcciones_tiff WHERE archivo_id=? AND estado='Pendiente'",(r['id'],))
             if corrections:r['estado']='REESCANEAR'
             r.update(nombre=portable_name(r['ruta']),fecha=datetime.datetime.fromtimestamp(r['fecha_origen']).strftime('%d/%m/%Y %H:%M:%S'))
         self.files_table.fill(rows)
-        if self.current and str(self.current) in self.files_table.tree.get_children():self.files_table.tree.selection_set(str(self.current));self.files_table.tree.see(str(self.current))
+        valid=[i for i in selected if self.files_table.tree.exists(i)]
+        if valid:self.files_table.tree.selection_set(valid)
+        elif self.current and self.files_table.tree.exists(str(self.current)):self.files_table.tree.selection_set(str(self.current))
         self.loading=False
+
+    def change_integration(self):
+        if not self.pending():self.integration_filter.set(self.integration_filter_previous);return
+        self.integration_filter_previous=self.integration_filter.get()
+        self.current=None
+        if self.image is not None:self.image.close();self.image=None
+        self.canvas.delete('all');self.page_label.set('Selecciona un TIFF de esta integración')
+        self.refresh_files();self.first_file()
     def legacy_refresh_catalog(self):
         q=self.search.get().casefold();self.catalog=self.service.catalog()
         self.cat_table.fill([dict(c,secuencia='F6 '+c['secuencia'],favorito='Ctrl+'+str(c['favorito']) if c['favorito'] else '') for c in self.catalog if q in (c['codigo']+' '+c['titulo']+' '+c['descripcion']).casefold()])
@@ -122,7 +149,9 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         ident=self.files_table.selected()
         if ident==self.current:return
         def switch():
-            if not self.pending():self.refresh_files();return
+            if not self.pending():
+                if self.current is not None:self.files_table.tree.selection_set(str(self.current));self.files_table.tree.focus(str(self.current))
+                self.refresh_files();return
             old=self.current;self.current=ident;self.page=0;self.ops=[];self.zoom=None
             try:self.render();self.files_table.see_selected()
             except Exception:self.current=old;self.refresh_files();raise
@@ -281,6 +310,10 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
     def organize(self):
         if not self.pending():return
         plan=self.service.plan(self.work);win=tk.Toplevel(self);win.title('Vista previa de organización');win.geometry('1000x550');win.transient(self);win.grab_set()
+        from .integration_ui import heading
+        from .integrations import Integrations
+        totals=Integrations(self.parent.store).totals(self.work)
+        ttk.Label(win,text=heading(self.parent.store,self.work)+'\nENTREGA COMPLETA ACTUALIZADA · {} hojas confirmadas · {} conteos pendientes · {} TIFF · {} páginas'.format(totals['hojas_confirmadas'],totals['conteos_pendientes'],totals['tiff'],totals['paginas']),wraplength=960,padding=10,style='Subtitle.TLabel').pack(fill='x')
         table=Table(win,['id','source','target','paginas']);table.pack(fill='both',expand=True);table.fill(plan)
         ttk.Label(win,text='Se moverán las copias gestionadas. Escaneos originales intactos. Los estados de proceso no se avanzan automáticamente.').pack()
         def run():
@@ -295,6 +328,6 @@ class CodingWindow(CodingUIV3,tk.Toplevel):
         except Exception as e:messagebox.showerror('No se pudo guardar',str(e),parent=self);return False
         if self.image is not None:self.image.close()
         self.save_layout();self.files_table.save_preferences()
-        for job in (self.resize_job,getattr(self,'wheel_job',None)):
+        for job in (self.resize_job,getattr(self,'wheel_job',None),getattr(self,'first_job',None),getattr(self,'layout_job',None)):
             if job:self.after_cancel(job)
         self.destroy();return True

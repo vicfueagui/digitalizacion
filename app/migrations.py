@@ -3,7 +3,7 @@ import sqlite3
 from .workspace import CODE_ROOT
 from .migration_sql import CODING_1, CODING_2
 
-CORE_VERSION = 7
+CORE_VERSION = 8
 CODING_VERSION = 3
 
 
@@ -99,6 +99,10 @@ CREATE TABLE IF NOT EXISTS inventario_pendiente(trabajo_id INTEGER PRIMARY KEY R
             statements(db, (CODE_ROOT / 'app' / 'intake_schema.sql').read_text(encoding='utf-8'))
             from .directory import seed
             seed(store)
+        if core < 8:
+            statements(db, (CODE_ROOT / 'app' / 'integrations_schema.sql').read_text(encoding='utf-8'))
+            from .integrations import migrate as migrate_integrations
+            migrate_integrations(store)
         db.execute("INSERT OR REPLACE INTO meta VALUES('schema_version',?)", (str(CORE_VERSION),))
         db.execute("INSERT OR REPLACE INTO meta VALUES('coding_schema_version',?)", (str(CODING_VERSION),))
         if db.execute('PRAGMA foreign_key_check').fetchone():

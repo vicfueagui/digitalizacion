@@ -79,6 +79,8 @@ def detect_header(rows):
 
 def create_draft(store,item):
     """Alta técnica, sin acreditar recepción/avance. Transacción del llamador."""
+    linked=store.rows('SELECT trabajo_id FROM integraciones WHERE prestamo_item_id=?',(item,))
+    if linked:return linked[0]['trabajo_id']
     row=store.rows('SELECT * FROM prestamo_items WHERE id=?',(item,))[0]
     if not row['legajo_esperado'] or not row['expediente_id']:return None
     found=store.rows('SELECT id FROM trabajos WHERE folio_id=? AND curp=? AND legajo=?',(row['folio_id'],row['curp_esperada'],row['legajo_esperado']))

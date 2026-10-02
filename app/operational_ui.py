@@ -60,9 +60,10 @@ class OperationalUI:
 
     def setup_kanban(self):
         from .ui import Table
-        page=self.pages['Kanban'];ttk.Label(page,text='Etapas derivadas del ciclo. Doble clic abre Expediente 360. La custodia física aparece por separado.').pack(anchor='w')
+        page=self.pages['Kanban'];ttk.Label(page,text='Filtra mientras escribes. Validación registrada: abre 360 para comprobar archivos. Doble clic abre el expediente.').pack(anchor='w')
         self.board_filters={}
-        for group in (('folio','digitalizador','responsable'),('custodia','prioridad','validacion','con_observaciones')):
+        self.board_job=None
+        for group in (('texto','folio','digitalizador','responsable'),('custodia','prioridad','validacion','con_observaciones')):
             bar=self.bar(page)
             for key in group:
                 ttk.Label(bar,text={'con_observaciones':'Observaciones'}.get(key,key.capitalize())).pack(side='left',padx=3)
@@ -70,21 +71,33 @@ class OperationalUI:
                 choices={'custodia':['']+CUSTODY,'prioridad':['','Baja','Normal','Alta','Urgente'],'validacion':['','OK','OK con advertencias','REQUIERE REVISIÓN','BLOQUEANTE','Sin vigencia'],'con_observaciones':['','Sí','No']}.get(key)
                 if choices:ttk.Combobox(bar,textvariable=var,values=choices,state='readonly',width=18).pack(side='left')
                 else:ttk.Entry(bar,textvariable=var,width=17).pack(side='left')
-        bar=self.bar(page);self.button(bar,'Aplicar filtros',self.refresh);self.button(bar,'Tareas auxiliares históricas',self.task_list)
+                var.trace_add('write',self.schedule_board)
+        bar=self.bar(page);self.button(bar,'Limpiar filtros',lambda:[v.set('') for v in self.board_filters.values()]);self.button(bar,'Tareas auxiliares históricas',self.task_list)
+        self.board_status=ttk.Label(bar);self.board_status.pack(side='left',padx=12)
         frame=ttk.Frame(page);frame.pack(fill='both',expand=True);self.boards={}
-        ttk.Style(self).configure('Kanban.Treeview',rowheight=122)
+        ttk.Style(self).configure('Kanban.Treeview',rowheight=158)
         for i,state in enumerate(KANBAN):
             column=ttk.LabelFrame(frame,text=state,padding=2);column.grid(row=0,column=i,sticky='nsew',padx=2);frame.columnconfigure(i,weight=1)
-            table=Table(column,['id','tarjeta']);table.tree.configure(style='Kanban.Treeview');table.tree.column('id',width=35);table.tree.column('tarjeta',width=185)
+            table=Table(column,['id','tarjeta']);table.tree.configure(style='Kanban.Treeview',displaycolumns=('tarjeta',));table.tree.column('tarjeta',width=185,minwidth=140)
             table.pack(fill='both',expand=True);table.tree.bind('<Double-1>',lambda e,t=table:self.safe(lambda:self.summary_window(t.selected())))
             self.boards[state]=table
         frame.rowconfigure(0,weight=1)
 
+    def schedule_board(self,*args):
+        if self.board_job:self.after_cancel(self.board_job)
+        self.board_job=self.after(220,self.refresh_board)
+
     def refresh_board(self):
+        if self.board_job:self.after_cancel(self.board_job);self.board_job=None
         cards=Reporting(self.store).cards(**{k:v.get().strip() for k,v in self.board_filters.items()})
         for row in cards:
-            row['tarjeta']='{} · L{}\n{}\n{}\n{}\n{}\n{} TIFF · {} págs. · {} obs.\n{}'.format(row['curp'],row['legajo'],row['folio'],row['digitalizador'] or 'Por asignar',row['estado'],row['custodia'],row['tiff_activos'],row['paginas'],row['observaciones'],row['validacion'])
-        for state,table in self.boards.items():table.fill([r for r in cards if r['columna']==state])
+            row['tarjeta']='{}\n{} · L{}\n{} · {}\n{}\n{}\n{}\n{} TIFF · {} págs. · {} obs.\n{}'.format(row['nombre'],row['curp'],row['legajo'],row['folio'],row['integracion'],row['digitalizador'] or 'Por asignar',row['estado'],row['custodia'],row['tiff_activos'],row['paginas'],row['observaciones'],row['validacion'])
+        for state,table in self.boards.items():
+            selected=table.tree.selection();rows=[r for r in cards if r['columna']==state];table.fill(rows)
+            for ident in selected:
+                if table.tree.exists(ident):table.tree.selection_set(ident)
+            table.master.configure(text=state+' ('+str(len(rows))+')')
+        self.board_status.configure(text=str(len(cards))+' expedientes visibles')
 
     def setup_folios(self):
         from .ui import Table
@@ -118,7 +131,12 @@ class OperationalUI:
         from .ui import Table
         d=Deliveries(self.store);reviews=Reviews(self.store);reporting=Reporting(self.store)
         w=self.store.one('trabajos',work);win=tk.Toplevel(self);win.title('Expediente 360 · '+w['curp']+' · L'+str(w['legajo']));win.geometry('1060x690')
-        bar=self.bar(win);self.button(bar,'Conteo / incidencias / etapas',lambda:self.detail(work));self.button(bar,'Préstamo',lambda:self.loan_window(w['folio_id']))
+        from .integration_ui import heading
+        from .integrations import Integrations
+        win.title('Expediente 360 · '+heading(self.store,work))
+        ttk.Label(win,text=heading(self.store,work),style='Subtitle.TLabel',padding=8,wraplength=1020).pack(fill='x')
+        bar=self.bar(win);self.button(bar,'Conteo / incidencias / etapas',lambda:self.detail(work));self.button(bar,'Préstamo',lambda:self.loan_window(Integrations(self.store).current(work)['folio_id']))
+        self.button(bar,'Integraciones',lambda:self.integrations(work))
         self.button(bar,'Asignar',lambda:self.assignment_form(work=work));self.button(bar,'Nota / prioridad',lambda:self.metadata_form(work))
         self.button(bar,'Legajos de esta CURP',lambda:self.legajos_view(work))
         nb=ttk.Notebook(win);nb.pack(fill='both',expand=True);pages={}
@@ -131,6 +149,7 @@ class OperationalUI:
         def reload():
             data=reporting.summary(work);display={k:data[k] for k in ('Identificación','Custodia física','Asignaciones','Proceso','Conteo físico','Digital vigente','Dato legado declarado','Cambios de última entrega')}
             display['Validación actual']=data['Validación']['Resultado actual'];display['Advertencias / bloqueos']=data['Validación']['Problemas']
+            display['Integraciones']=Integrations(self.store).list(work);display['Totales acumulados']=Integrations(self.store).totals(work)
             text.configure(state='normal');text.delete('1.0','end');text.insert('1.0',readable(display));text.configure(state='disabled')
             deliveries.fill(data['Entregas']);observations.fill(data['Observaciones']);history.fill([dict(e,id=i) for i,e in enumerate(data['Línea de tiempo'])]);self.refresh()
         def prepare():d.prepare(work);reload();nb.select(pages['Entregas'])
@@ -187,10 +206,12 @@ class OperationalUI:
         from .ui import Table
         d=Deliveries(self.store);manifest=d.verify(delivery);root=self.store.workspace.path(d.get(delivery)['ruta'])
         win=tk.Toplevel(parent or self);win.title('Entrega {} · TIFF inmutables'.format(manifest['numero']));win.geometry('950x550')
-        table=Table(win,['id','nombre_canonico','codigo','carpeta','paginas','document_asset_id','file_version_id']);bar=self.bar(win)
+        ttk.Label(win,text='{} · {} · L{} · Entrega {}'.format(manifest.get('nombre_completo','Nombre no registrado en esta entrega histórica'),manifest['curp'],manifest['legajo'],manifest['numero']),style='Subtitle.TLabel',padding=8,wraplength=920).pack(fill='x')
+        groups={a['archivo_id']:group['etiqueta'] for group in manifest.get('integraciones',[]) for a in group['archivos']}
+        table=Table(win,['id','nombre_canonico','integracion','codigo','carpeta','paginas','document_asset_id','file_version_id']);bar=self.bar(win)
         items={i['archivo_id']:i for i in manifest['items']}
         def view():d.verify(delivery);SnapshotViewer(win,root/items[table.selected()]['ruta'])
-        self.button(bar,'Ver TIFF de esta entrega',view);table.pack(fill='both',expand=True);table.fill([dict(i,id=i['archivo_id']) for i in manifest['items']])
+        self.button(bar,'Ver TIFF de esta entrega',view);table.pack(fill='both',expand=True);table.fill([dict(i,id=i['archivo_id'],integracion=groups.get(i['archivo_id'],'Histórica sin desglose')) for i in manifest['items']])
         table.tree.bind('<Double-1>',lambda e:self.safe(view));return win
 
     def observation_evidence(self,ident,parent=None):

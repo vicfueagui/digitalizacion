@@ -23,7 +23,8 @@ class Dashboard:
         stale={r['trabajo_id'] for r in self.s.rows('SELECT trabajo_id FROM inventario_pendiente')}
         metrics={'Trabajos activos':total,'CURP distintas':len({w['curp'] for w in works}),
                  'Archivos TIFF':sum(w.get('total_tiff',0) for w in works),'Páginas conocidas':sum(w.get('total_paginas',0) for w in works),
-                 'Hojas físicas confirmadas':sum(w['fisicos'] or 0 for w in works),'Sin conteo confirmado':sum(w['fisicos'] is None for w in works),
+                 'Hojas físicas confirmadas':sum(w.get('hojas_confirmadas',w['fisicos']) or 0 for w in works),'Sin conteo confirmado':sum(w['fisicos'] is None for w in works),
+                 'Integraciones adicionales':sum(w.get('integracion',0) or 0 for w in works),
                  'Recepción pendiente':sum(w.get('recepcion')!='Aceptado' for w in works),
                  'Sin digitalizador asignado':sum(not w['digitalizador'].strip() for w in works),
                  'Cerrados':sum(w['estado']==STATES[-1] for w in works),
@@ -53,7 +54,7 @@ class Dashboard:
                 row['expedientes']+=1;row['tiff']+=w.get('total_tiff',0);row['paginas']+=w.get('total_paginas',0)
                 row['aceptados']+=w.get('recepcion')=='Aceptado';row['cerrados']+=w['estado']==STATES[-1];row['ids'].append(w['id'])
             groups[field]=[dict(row,cierre=percentage(row['cerrados'],row['expedientes'])) for name,row in sorted(grouped.items())]
-        pending=self.s.db.execute('SELECT COUNT(*) FROM prestamo_items i JOIN folios f ON f.id=i.folio_id WHERE f.activo=1 AND NOT EXISTS(SELECT 1 FROM trabajos t WHERE t.prestamo_item_id=i.id)').fetchone()[0]
+        pending=self.s.db.execute('SELECT COUNT(*) FROM prestamo_items i JOIN folios f ON f.id=i.folio_id WHERE f.activo=1 AND NOT EXISTS(SELECT 1 FROM integraciones t WHERE t.prestamo_item_id=i.id)').fetchone()[0]
         return {'generado':datetime.datetime.now().astimezone().isoformat(timespec='seconds'),'filtros':dict(filters or {}),
                 'metrica':metrics,'etapas':stages,'cobertura':coverage,'grupos':groups,'expedientes':works,
                 'sin_ciclo_global':pending,'alcance':'Ciclos vigentes activos de la vista; sin sumar entregas ni ciclos históricos.',

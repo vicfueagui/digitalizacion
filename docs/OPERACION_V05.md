@@ -1,11 +1,9 @@
 # Operación del modelo 0.5.0
 
-**Antecedente de la versión 0.5.0.** Para los botones actuales y el recorrido completo de 0.6.2 consulta el [Manual de uso](MANUAL_USUARIO.html). Esta página conserva la explicación del modelo; las ampliaciones posteriores están integradas en el manual vigente.
-
 Para practicar en este Mac:
 
 ```sh
-cd "/Users/admin/Downloads/Digitalizacion"
+cd "/RUTA/DEL/PROYECTO"
 .venv/bin/python main.py --workspace ensayos/modelo-operativo-v05/demo
 ```
 
@@ -13,10 +11,10 @@ Es una demo ficticia con tres maestros, dos legajos de la misma identidad, recep
 
 ## Recepción y asignación
 
-1. En **Folios**, crea el folio y abre **Recepción / préstamo**. En la interfaz actual, **Más acciones → Registrar entrega / recepción del folio** guarda área, entrega/recibe y referencia de acuse. Una fecha vacía registra la recepción actual; no la uses para inventar fechas históricas.
-2. Añade cada expediente esperado con CURP, legajo y ubicación original. En la interfaz actual, **Aceptar seleccionados** confirma los físicos cotejados sin recapturar CURP; **Revisar diferencia** registra faltante, discrepancia o pendiente con evidencia. El lote puede quedar aceptado parcialmente.
+1. En **Folios**, crea el folio y abre **Recepción / préstamo**. **Registrar recepción** guarda área, entrega/recibe y referencia de acuse. Una fecha vacía registra la recepción actual; no la uses para inventar fechas históricas.
+2. Añade cada expediente esperado con CURP, legajo y ubicación original. **Validar seleccionado** contrasta con el expediente físico: aceptado, faltante, discrepancia o pendiente. Escribe evidencia. El lote puede quedar aceptado parcialmente.
 3. Si recibiste un expediente fuera de la lista, usa **Recibido no relacionado**. Conserva la discrepancia; aceptarlo después requiere confirmar explícitamente ese extra. No lo conviertas en un elemento supuestamente incluido en la lista original.
-4. La aceptación crea los ciclos que faltan. **Más acciones → Abrir expediente seleccionado** abre su 360. **Asignar ciclos del folio** exige que todos los ciclos activos estén aceptados y el préstamo abierto; **Asignar** en 360 actúa sobre ese ciclo y permite avanzar recepciones parciales. Una reasignación conserva el historial; marcar colaborador añade apoyo sin sustituir.
+4. **Abrir / crear ciclo aceptado** abre su 360. **Asignar ciclos del folio** asigna todo lo aceptado; **Asignar** en 360 actúa sobre ese ciclo. Una reasignación conserva el historial; marcar colaborador añade apoyo sin sustituir.
 5. El mismo CURP/legajo en otro folio reutiliza el maestro y crea otro ciclo. Para legajo 2, captura 2 expresamente. No cambies el folio de un ciclo previo.
 
 ## Trabajo diario y validación
@@ -67,6 +65,6 @@ Los registros migrados pueden requerir **Confirmar vínculo histórico con el ma
 
 **Exportar 360 imprimible** guarda HTML local. Ábrelo en el navegador y usa Imprimir o guardar PDF si el sistema dispone de esa función. Incluye identificación, préstamo, asignaciones, métricas conocidas, validación, entregas/cambios, observaciones e historia, incluso antes de escanear.
 
-La interfaz actual ofrece **Indicadores → Exportar indicadores** para los CSV de la vista y su contexto. No exporta automáticamente todo el historial; los datasets del modelo conservan sus funciones propias. Las cifras Excel/CSV legadas se distinguen de los TIFF gestionados; no se suman snapshots. No publiques estos reportes: una instalación real contiene información del expediente.
+La exportación de **Indicadores → Exportar vista filtrada y tablas de historial** genera también tablas CSV normalizadas y hechos operativos JSON. Las cifras Excel/CSV legadas se distinguen de los TIFF gestionados; no se suman snapshots. No publiques estos reportes: una instalación real contiene información del expediente.
 
 Antes de trasladar o actualizar una instalación, genera y verifica respaldo completo. Consulta [WINDOWS7.md](WINDOWS7.md) para ensayar en el equipo de oficina sin sustituir sus datos. Para retomar desarrollo, lee [CONTEXTO_PROYECTO.md](CONTEXTO_PROYECTO.md) y [BITACORA_DESARROLLO.md](BITACORA_DESARROLLO.md).

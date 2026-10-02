@@ -43,8 +43,9 @@ class FileBrowser(ttk.Frame):
         ttk.Scale(self.size_bar,from_=64,to=224,variable=self.size,command=lambda v:self.schedule()).pack(side='left',fill='x',expand=True)
         ttk.Label(self.size_bar,text='Ctrl + rueda').pack(side='right')
         self.body=ttk.Frame(self);self.body.pack(fill='both',expand=True)
-        self.table=Table(self.body,['id','nombre','paginas','fecha','codigo','estado']);self.tree=self.table.tree
-        self.tree.configure(displaycolumns=('nombre','paginas','codigo','estado','fecha'),selectmode='browse')
+        self.table=Table(self.body,['id','nombre','integracion','paginas','fecha','codigo','estado']);self.tree=self.table.tree
+        self.tree.configure(displaycolumns=('nombre','integracion','paginas','codigo','estado','fecha'),selectmode='extended')
+        self.anchor_index=0
         for name,width,title in [('nombre',190,'Archivo'),('paginas',48,'Págs.'),('codigo',65,'Código'),('estado',90,'Estado'),('fecha',125,'Fecha')]:
             self.tree.column(name,width=width,minwidth=40,stretch=name=='nombre');self.tree.heading(name,text=title)
         self.table.pack(fill='both',expand=True)
@@ -59,7 +60,7 @@ class FileBrowser(ttk.Frame):
         for key,delta in [('Left',-1),('Right',1),('Up',-1),('Down',1)]:
             self.canvas.bind('<'+key+'>',lambda e,k=key,d=delta:self.move(d*self.columns if k in ('Up','Down') else d))
         self.tree.bind('<<TreeviewSelect>>',on_select)
-        self.tree.bind('<<TreeviewSelect>>',lambda e:self.schedule(),add='+')
+        self.tree.bind('<<TreeviewSelect>>',lambda e:(self.update_count(),self.schedule()),add='+')
         ttk.Label(self,textvariable=self.count,anchor='w').pack(fill='x',pady=3)
         saved=service.store.rows("SELECT value FROM meta WHERE key='visor_archivos'")
         if saved:
@@ -69,16 +70,24 @@ class FileBrowser(ttk.Frame):
             except ValueError:pass
         self.change_view()
 
-    def selected(self):return self.table.selected()
+    def selected(self):
+        focused=self.tree.focus()
+        return int(focused) if focused and focused in self.tree.selection() else self.table.selected()
+    def selected_ids(self):return [int(i) for i in self.tree.get_children() if i in self.tree.selection()]
+    def select_all(self):self.tree.selection_set(self.tree.get_children());self.update_count()
+    def update_count(self):self.count.set('{} TIFF · {} páginas · {} seleccionados'.format(len(self.rows),sum(r['paginas'] for r in self.rows),len(self.tree.selection())))
     def fill(self,rows):
-        self.rows=rows;self.table.fill(rows);self.count.set('{} TIFF · {} páginas'.format(len(rows),sum(r['paginas'] for r in rows)))
+        selected=self.tree.selection();focused=self.tree.focus();self.rows=rows;self.table.fill(rows)
+        self.tree.selection_set([i for i in selected if self.tree.exists(i)])
+        if focused and self.tree.exists(focused):self.tree.focus(focused)
+        self.update_count()
         self.schedule()
     def change_view(self):
         self.table.pack_forget();self.grid_frame.pack_forget();self.size_bar.pack_forget()
         if self.mode.get()=='Miniaturas':
             self.size_bar.pack(fill='x',before=self.body,pady=(0,4));self.grid_frame.pack(fill='both',expand=True)
         else:
-            self.tree.configure(displaycolumns=('nombre','paginas','codigo','estado','fecha') if self.mode.get()=='Detalles' else ('nombre',))
+            self.tree.configure(displaycolumns=('nombre','integracion','paginas','codigo','estado','fecha') if self.mode.get()=='Detalles' else ('nombre','integracion'))
             self.table.pack(fill='both',expand=True)
         self.schedule();self.see_selected()
     def save_preferences(self):
@@ -128,11 +137,11 @@ class FileBrowser(ttk.Frame):
         top=max(0,self.canvas.canvasy(0));height=self.canvas.winfo_height();size=int(self.size.get())
         start=max(0,int(top//self.cell_height)*self.columns)
         end=min(len(self.rows),(int((top+height)//self.cell_height)+2)*self.columns)
-        selected=self.tree.selection();chosen=int(selected[0]) if selected else None
+        selected=set(self.tree.selection())
         for index in range(start,end):
             row=self.rows[index];x=(index%self.columns)*self.cell_width;y=(index//self.columns)*self.cell_height
-            active=row['id']==chosen;tag='file:'+str(row['id'])
-            self.canvas.create_rectangle(x+3,y+3,x+self.cell_width-3,y+self.cell_height-3,fill='#d9eaf9' if active else '#ffffff',outline='#3177ad' if active else '#d6dfe6',width=2 if active else 1,tags=tag)
+            active=str(row['id']) in selected;tag='file:'+str(row['id'])
+            self.canvas.create_rectangle(x+3,y+3,x+self.cell_width-3,y+self.cell_height-3,fill='#F3DEDA' if active else '#ffffff',outline='#B3282A' if active else '#d6dfe6',width=2 if active else 1,tags=tag)
             photo=self.thumbnail(row,size)
             if photo:
                 self.photos.append(photo);self.canvas.create_image(x+self.cell_width/2,y+size/2+7,image=photo,tags=tag)
@@ -140,11 +149,18 @@ class FileBrowser(ttk.Frame):
             label=row['nombre']
             if len(label)>34:label=label[:22]+'…'+label[-9:]
             self.canvas.create_text(x+self.cell_width/2,y+size+11,text=label,width=self.cell_width-12,anchor='n',justify='center',tags=tag)
-            self.canvas.create_text(x+self.cell_width/2,y+self.cell_height-13,text='{} pág. · {}'.format(row['paginas'],row['codigo'] or 'Sin código'),fill='#526574',tags=tag)
+            self.canvas.create_text(x+self.cell_width/2,y+self.cell_height-13,text='{} pág. · {} · {}'.format(row['paginas'],row['codigo'] or 'Sin código',row.get('integracion','')),fill='#526574',width=self.cell_width-10,tags=tag)
     def click(self,event):
         self.canvas.focus_set()
         index=int(self.canvas.canvasy(event.y)//self.cell_height)*self.columns+int(event.x//getattr(self,'cell_width',1))
-        if 0<=index<len(self.rows):self.tree.selection_set(str(self.rows[index]['id']))
+        if 0<=index<len(self.rows):
+            ident=str(self.rows[index]['id'])
+            if event.state & 1:
+                low,high=sorted((min(self.anchor_index,len(self.rows)-1),index));self.tree.selection_set([str(r['id']) for r in self.rows[low:high+1]])
+            elif event.state & 4:
+                self.tree.selection_toggle(ident);self.anchor_index=index
+            else:self.tree.selection_set(ident);self.anchor_index=index
+            self.tree.focus(ident);self.update_count()
     def move(self,delta):
         ids=[r['id'] for r in self.rows];selected=self.tree.selection()
         if ids:

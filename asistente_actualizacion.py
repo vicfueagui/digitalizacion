@@ -19,18 +19,30 @@ import webbrowser
 from actualizar import inspect_release
 from app import VERSION
 from app.backup import sha256
-from app.runtime import resolve as resolve_runtime, environment, validate
 
 ROOT = Path(__file__).resolve().parent
+PROBE = """import json, platform, struct, sys, tkinter, PIL
+from PIL import features
+print(json.dumps(dict(python=platform.python_version(), bits=struct.calcsize('P')*8,
+ implementation=platform.python_implementation(), pillow=PIL.__version__,
+ libtiff=features.check('libtiff'), tk=tkinter.TkVersion)))
+"""
+
+
 def child_environment():
-    return environment()
+    env = dict(os.environ)
+    env['PYTHONIOENCODING'] = 'utf-8'
+    env['DIGITALIZACION_PROBAR_FUENTES_PRIVADAS'] = '0'
+    return env
 
 
 def validate_profile(info, windows):
-    # Adaptador de la API anterior; la decisión del perfil es compartida.
-    normalized=dict(info,python_bits=info.get('bits'),implementacion=info.get('implementation'),
-                    tk=str(info['tk']) if info.get('tk') else None)
-    validate(normalized,'legado' if windows else 'laboratorio')
+    if not info.get('libtiff') or not info.get('tk'):
+        raise ValueError('El Python elegido necesita Tk y Pillow con soporte TIFF.')
+    if windows and (info.get('python') != '3.8.10' or info.get('bits') != 64 or
+                    info.get('implementation') != 'CPython' or info.get('pillow') != '9.5.0'):
+        raise ValueError('En Windows se requiere CPython 3.8.10 de 64 bits y Pillow 9.5.0. '
+                         'Consulta ACTUALIZACION.html antes de continuar.')
 
 
 class UpdateSession:
@@ -49,13 +61,65 @@ class UpdateSession:
         self.signature = None
         self.rehearsal = None
 
+    def _python_candidates(self):
+        if not self.windows:
+            return [Path(sys.executable)]
+        candidates = [self.destination / '.venv/Scripts/python.exe']
+        route_file = self.destination / 'python_ruta.txt'
+        if route_file.is_file():
+            try:
+                value = route_file.read_text(encoding='utf-8').splitlines()[0].strip().strip('\"')
+                if value:
+                    candidates.append(Path(value))
+            except (OSError, IndexError, UnicodeError):
+                pass
+        candidates.append(Path(sys.executable))
+        local = os.environ.get('LOCALAPPDATA')
+        if local:
+            candidates.append(Path(local) / 'Programs/Python/Python38/python.exe')
+        candidates.append(Path('C:/Python38/python.exe'))
+        unique = []
+        seen = set()
+        for item in candidates:
+            try:
+                key = str(item.resolve()).lower()
+            except OSError:
+                key = str(item).lower()
+            if key not in seen:
+                seen.add(key); unique.append(item)
+        return unique
+
     def inspect(self):
         self.signature = None
         self.rehearsal = None
         if self.destination is None:
             raise ValueError('Primero elige la carpeta del proyecto que usas a diario.')
         manifest = inspect_release(self.source, self.destination)
-        interpreter, info, rejected = resolve_runtime(self.destination,profile='legado' if self.windows else 'laboratorio')
+        failures = []
+        interpreter = None
+        info = None
+        for candidate in self._python_candidates():
+            try:
+                if not candidate.is_file() or candidate.stat().st_size <= 0:
+                    failures.append(str(candidate) + ': no existe o está vacío')
+                    continue
+                result = subprocess.run([str(candidate), '-c', PROBE], cwd=str(self.source),
+                                        env=child_environment(), stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, universal_newlines=True,
+                                        encoding='utf-8', timeout=30)
+                if result.returncode:
+                    failures.append(str(candidate) + ': no pudo ejecutarse o cargar Tk/Pillow')
+                    continue
+                candidate_info = json.loads(result.stdout)
+                validate_profile(candidate_info, self.windows)
+                interpreter = candidate
+                info = candidate_info
+                break
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                failures.append(str(candidate) + ': ' + str(error))
+        if interpreter is None:
+            raise ValueError('No se encontró un Python compatible para el proyecto.\n' + '\n'.join(failures) +
+                             '\nSe requiere CPython 3.8.10 x64 con Tk, Pillow 9.5.0 y TIFF.')
         self.interpreter = interpreter
         self.signature = sha256(self.source / 'release-manifest.json')
         return manifest, info
@@ -92,8 +156,8 @@ class UpdateSession:
         if (not report.get('comprobaciones_automaticas_correctas') or
                 report.get('entorno', {}).get('version_aplicacion') != VERSION):
             raise ValueError('Informe de ensayo incompleto o de otra versión: ' + str(target))
-        if self.windows and not (report.get('perfil_windows7_coincide') or report.get('perfil_windows10_conservador')):
-            raise ValueError('El ensayo no acredita el perfil Windows 7 SP1 o Windows 10 conservador. Revisa ' + str(target))
+        if self.windows and not report.get('perfil_windows7_coincide'):
+            raise ValueError('El ensayo no acredita el perfil Windows 7 SP1 requerido. Revisa ' + str(target))
         self.rehearsal = target
         return target
 
@@ -157,11 +221,6 @@ class UpdateApp(tk.Tk):
         scroll.pack(side='right', fill='y'); self.output.pack(fill='both', expand=True)
         ttk.Button(body, text='Guía paso a paso / resolver un problema',
                    command=lambda:webbrowser.open((ROOT/'ACTUALIZACION.html').as_uri())).pack(anchor='w')
-        def fit(event):
-            if event.widget is body:
-                for widget in body.winfo_children():
-                    if isinstance(widget, ttk.Label): widget.configure(wraplength=max(250,event.width-8))
-        body.bind('<Configure>', fit)
         self.controls(); self.after(100, self.poll)
 
     def controls(self):
@@ -206,6 +265,7 @@ class UpdateApp(tk.Tk):
             self.status.set('Comprobación correcta. Continúa con el ensayo independiente.')
             self.write('Paquete ' + manifest['version'] + ': ' + str(len(manifest['files'])) +
                        ' archivos comprobados.\nPython: ' + json.dumps(info, ensure_ascii=False) +
+                       '\nIntérprete elegido: ' + str(self.session.interpreter) +
                        '\nEsta comprobación no modifica los datos del proyecto.')
             if platform.system() != 'Windows': self.write('Este ensayo en Mac/Linux no acredita Windows 7.')
         self.run('Comprobando archivos, base de datos y entorno…', self.session.inspect, done)

@@ -425,6 +425,8 @@ class CodingService(CodingV3):
         return plan
 
     def organize(self,work):
+        from .integrations import Integrations
+        Integrations(self.store).check_delivery(work)
         with self.store.db:self.invalidate(work)
         plan=self.plan(work);w=self.active_work(work);dest=self.work_dir(work)/w['curp'];moved=[]
         for folder in ('PERSONALES','FEDERAL'):self.path(dest/folder).mkdir(parents=True,exist_ok=True)

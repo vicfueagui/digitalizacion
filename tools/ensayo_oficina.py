@@ -36,7 +36,6 @@ def main():
         pass
     results = {'entorno': info, 'etapas': [], 'pruebas': None,
                'perfil_windows7_coincide': sys.platform == 'win32' and platform.release() == '7' and info['service_pack'] == 'SP1' and info['python_implementacion'] == 'CPython' and sys.version_info[:3] == (3,8,10) and info['python_bits'] == 64 and info['pillow'] == '9.5.0' and info['libtiff'],
-               'perfil_windows10_conservador': sys.platform == 'win32' and platform.release() == '10' and sys.getwindowsversion().build < 22000 and info['python_implementacion'] == 'CPython' and sys.version_info[:3] == (3,8,10) and info['python_bits'] == 64 and info['pillow'] == '9.5.0' and info['libtiff'],
                'revision_manual_pendiente': ['Teclado español y teclado numérico físicos', 'Nitidez, rueda/trackpad y disposición de paneles', 'Rendimiento con tamaños representativos en el equipo de oficina', 'Comparación de una copia autorizada antes de abrir producción'],
                'produccion_validada': False, 'comprobaciones_automaticas_correctas': False}
     report = destination / 'resultado.json'
@@ -72,9 +71,7 @@ def main():
                 if run('restaurar', [ROOT/'main.py','--restaurar',backup,'--destino',destination/'restaurado']):
                     run('diagnostico_restaurado', [ROOT/'main.py','--workspace',destination/'restaurado','--diagnostico'])
             results['etapas'].append({'etapa':'base_de_demo_intacta_al_respaldar', 'correcto':sha256(demo/'datos/digitalizacion.sqlite3') == before})
-            if args.ventanas:
-                run('ventanas', [ROOT/'tools/smoke_ui.py'], timeout=120)
-                run('asistente', [ROOT/'tools/smoke_update_assistant.py'], timeout=120)
+            if args.ventanas: run('ventanas', [ROOT/'tools/smoke_ui.py'], timeout=120)
         results['comprobaciones_automaticas_correctas'] = suite_ok and all(item['correcto'] for item in results['etapas'])
     finally:
         with report.open('x', encoding='utf-8') as out: json.dump(results, out, ensure_ascii=False, indent=2)

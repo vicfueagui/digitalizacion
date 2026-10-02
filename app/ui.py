@@ -80,10 +80,8 @@ class Table(ttk.Frame):
 class App(OperationalUI,tk.Tk):
     def __init__(self,store):
         super().__init__();self.store=store;self.title('Digitalización · Control local '+VERSION);self.geometry('1120x740');self.minsize(880,620)
-        if self.tk.call('tk','windowingsystem')=='win32':self.option_add('*Font','{Segoe UI} 10')
-        style=ttk.Style(self)
-        if 'clam' in style.theme_names():style.theme_use('clam')
-        style.configure('Treeview',rowheight=27);style.configure('Title.TLabel',font=('Segoe UI',18,'bold'),foreground='#173c4c')
+        from .theme import apply
+        apply(self);self.geometry('1120x'+str(min(740,self.winfo_screenheight()-110)))
         top=ttk.Frame(self,padding=12);top.pack(fill='x')
         ttk.Label(top,text='Digitalización',style='Title.TLabel').pack(side='left')
         ttk.Label(top,text='Control de expedientes · local · un operador',padding=12).pack(side='left')
@@ -102,11 +100,12 @@ class App(OperationalUI,tk.Tk):
         self.tabs.bind('<<NotebookTabChanged>>',lambda e:self.safe(lambda:self.bi.refresh(self.filtered())) if self.tabs.tab(self.tabs.select(),'text')=='Indicadores' else None)
 
     def help(self):
-        import webbrowser
-        manual=ROOT/'docs/MANUAL_USUARIO.html'
-        if not manual.is_file():raise ValueError('No se encontró el manual. Recupera el paquete completo de esta versión.')
-        if not webbrowser.open(manual.as_uri()):
-            messagebox.showinfo('Manual de uso','Abre este archivo en tu navegador:\n'+str(manual),parent=self)
+        from .help_ui import HelpWindow
+        return HelpWindow(self)
+
+    def integrations(self,work):
+        from .integration_ui import show_integrations
+        return show_integrations(self,work)
 
     def safe(self,fn):
         try:
@@ -134,6 +133,7 @@ class App(OperationalUI,tk.Tk):
         except Exception as e:
             if not messagebox.askyesno('No se pudo respaldar',str(e)+'\n¿Cerrar de todas formas?'):return
         if self.filter_job:self.after_cancel(self.filter_job);self.filter_job=None
+        if self.board_job:self.after_cancel(self.board_job);self.board_job=None
         self.store.db.close();self.destroy()
 
     def setup_works(self):
@@ -157,6 +157,7 @@ class App(OperationalUI,tk.Tk):
         more=self.bar(p)
         self.button(more,'Ver / añadir legajos de la misma CURP',lambda:self.legajos_view(self.works_table.selected()))
         self.button(more,'Importar lista de folio Excel / CSV',self.import_loan_list)
+        self.button(more,'Integraciones',lambda:self.integrations(self.works_table.selected()))
         ttk.Label(p,text='Inventario activo del ciclo vigente: TIFF y páginas. Escribe para filtrar; no se suman entregas históricas.').pack(anchor='w')
         self.works_table=Table(p,['id','curp','nombre','folio','legajo','estado','total_tiff','total_paginas','fisicos','digitalizador','recepcion'])
         self.works_table.tree.configure(displaycolumns=('curp','nombre','folio','legajo','estado','total_tiff','total_paginas','fisicos','digitalizador','recepcion'))
@@ -197,6 +198,8 @@ class App(OperationalUI,tk.Tk):
         self.show_inactive.set(False);self.refresh()
     def legajos_view(self,ident):
         work=self.store.one('trabajos',ident);win=tk.Toplevel(self);win.title('Legajos de '+work['curp']);win.geometry('1050x570')
+        from .integration_ui import heading
+        win.title('Legajos · '+heading(self.store,ident));ttk.Label(win,text=heading(self.store,ident),style='Subtitle.TLabel',padding=8,wraplength=1000).pack(fill='x')
         ttk.Label(win,text='Cada legajo conserva su conteo, TIFF y entregas. Los ciclos de otros folios permanecen en el historial.',padding=8).pack(anchor='w')
         bar=self.bar(win);table=Table(win,['id','curp','legajo','folio','estado','total_tiff','total_paginas','fisicos','digitalizador'])
         table.pack(fill='both',expand=True);table.fill([r for r in self.store.works(activos=False) if r['curp']==work['curp']])
@@ -247,6 +250,10 @@ class App(OperationalUI,tk.Tk):
 
     def detail(self,ident):
         w=self.store.one('trabajos',ident);win=tk.Toplevel(self);win.title('Expediente '+w['curp']+' · legajo '+str(w['legajo']));win.geometry('1000x660')
+        from .integration_ui import heading
+        from .integrations import Integrations
+        win.title('Conteo y etapas · '+heading(self.store,ident))
+        ttk.Label(win,text=heading(self.store,ident),style='Subtitle.TLabel',wraplength=960,padding=8).pack(fill='x')
         nb=ttk.Notebook(win);nb.pack(fill='both',expand=True,padx=10,pady=10)
         pages={}
         for name in ('Conteo','Incidencias','Etapas e historial','Métricas TIFF'):
@@ -256,8 +263,9 @@ class App(OperationalUI,tk.Tk):
         bar=self.bar(p);ttk.Label(bar,text='Hojas del bloque:').pack(side='left');qty=ttk.Entry(bar,width=12);qty.pack(side='left',padx=5)
         table=Table(p,['id','cantidad','nota','activo','creado'])
         def reload():
-            table.fill(self.store.rows('SELECT * FROM conteos WHERE trabajo_id=? ORDER BY id',(ident,)))
-            total.set('Suma de bloques: {}   |   Total confirmado: {}'.format(self.store.count_total(ident) or 0,self.store.one('trabajos',ident)['fisicos']))
+            integration=Integrations(self.store).current(ident)
+            table.fill(self.store.rows('SELECT * FROM conteos WHERE integracion_id=? ORDER BY id',(integration['id'],)))
+            total.set('Este lote: {} hojas · Confirmadas: {}\nTotal del expediente: {}'.format(self.store.count_total(ident) or 0,integration['fisicos'] if integration['fisicos'] is not None else 'Pendiente',self.store.one('trabajos',ident)['fisicos'] if self.store.one('trabajos',ident)['fisicos'] is not None else 'Conteo pendiente'))
             self.refresh()
         def add():self.store.add_count(ident,qty.get());qty.delete(0,'end');reload();qty.focus_set()
         self.button(bar,'Agregar (Enter)',add);qty.bind('<Return>',lambda e:self.safe(add))

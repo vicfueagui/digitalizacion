@@ -20,6 +20,9 @@ class Operations:
         if not reason.strip():raise ValueError('Indica motivo o evidencia.')
         w=self.s.one('trabajos',work) if work else None
         master=w['expediente_id'] if w else None
+        if w and not item:
+            from .integrations import Integrations
+            item=Integrations(self.s).current(work)['prestamo_item_id']
         if item and not master:
             master=self.s.rows('SELECT expediente_id FROM prestamo_items WHERE id=?',(item,))[0]['expediente_id']
         self.db.execute('INSERT INTO eventos_operativos(expediente_id,trabajo_id,prestamo_item_id,evento,fecha,operador,motivo) VALUES(?,?,?,?,?,?,?)',
@@ -115,7 +118,7 @@ class Operations:
         self.permit('asignacion')
         row=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(item,))[0]
         if row['validacion']!='Aceptado':raise ValueError('Valida físicamente este elemento antes de iniciar su ciclo.')
-        existing=self.s.rows('SELECT id FROM trabajos WHERE prestamo_item_id=?',(item,))
+        existing=self.s.rows('SELECT trabajo_id AS id FROM integraciones WHERE prestamo_item_id=?',(item,))
         if existing:return existing[0]['id']
         person=row['curp_esperada'] or row['curp_recibida'];legajo=row['legajo_esperado'] or row['legajo_recibido']
         name=self.s.rows('SELECT nombre FROM personas WHERE curp=?',(person,))
@@ -126,10 +129,11 @@ class Operations:
         self.permit('asignacion')
         if not person.strip() or not reason.strip() or role not in ('Digitalizador','Revisor','Responsable'):raise ValueError('Indica persona, rol y motivo.')
         if (work is None)==(folio is None):raise ValueError('Selecciona un ciclo o un folio.')
-        targets=[self.s.one('trabajos',work)] if work else self.s.rows('SELECT * FROM trabajos WHERE folio_id=? AND activo=1',(folio,))
+        from .integrations import Integrations
+        targets=[self.s.one('trabajos',work)] if work else self.s.rows('SELECT t.* FROM trabajos t JOIN integraciones i ON i.id=t.integracion_actual_id WHERE i.folio_id=? AND t.activo=1',(folio,))
         if not targets:raise ValueError('El folio no tiene ciclos aceptados.')
         for w in targets:
-            item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(w['prestamo_item_id'],))[0]
+            item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(Integrations(self.s).current(w['id'])['prestamo_item_id'],))[0]
             if item['validacion']!='Aceptado' or item['custodia']!='Prestado a Digitalización':raise ValueError('La asignación exige recepción aceptada y préstamo abierto para todos los ciclos elegidos.')
         with self.db:
             from .directory import Directory

@@ -68,7 +68,7 @@ class LoanWindow(tk.Toplevel):
         from .file_browser import FlowBar
         super().__init__(app);self.app=app;self.folio=folio;self.ops=Operations(app.store)
         self.number=app.store.one('folios',folio)['numero'];self.title('Recepción y custodia · '+self.number);self.geometry('1080x660');self.minsize(840,540)
-        ttk.Label(self,text='Folio '+self.number,font=('TkDefaultFont',16,'bold'),padding=(10,8)).pack(anchor='w')
+        ttk.Label(self,text='Folio '+self.number,style='Title.TLabel',padding=(10,8)).pack(anchor='w')
         ttk.Label(self,text='Selecciona los físicos cotejados y acepta sin recapturar CURP. Puedes aceptar uno, varios o toda la lista visible.',wraplength=1000,padding=(10,0)).pack(anchor='w')
         bar=FlowBar(self);bar.pack(fill='x',padx=8,pady=5)
         for title,action in [('Aceptar seleccionados',self.accept_selected),('Seleccionar visibles',self.select_visible),('Revisar diferencia',self.review),('Ver en Expedientes',self.show_works)]:

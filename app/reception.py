@@ -18,6 +18,8 @@ class Reception:
             found=self.s.rows('SELECT i.*,p.nombre FROM prestamo_items i LEFT JOIN personas p ON p.curp=i.curp_esperada WHERE i.id=?',(ident,))
             if not found or found[0]['folio_id']!=folio:raise ValueError('La selección contiene un elemento ajeno al folio.')
             row=found[0];leg=row['legajo_esperado'] or default_legajo;errors=[]
+            linked=self.s.rows('SELECT i.trabajo_id,t.activo FROM integraciones i JOIN trabajos t ON t.id=i.trabajo_id WHERE i.prestamo_item_id=?',(ident,))
+            accepted_link=bool(linked and linked[0]['activo'] and row['validacion']=='Aceptado' and row['curp_recibida']==row['curp_esperada'] and row['legajo_recibido']==leg)
             try:person=curp(row['curp_esperada'])
             except ValueError:person=row['curp_esperada'];errors.append('Sin CURP esperada válida; usa Revisar diferencia.')
             if row['origen']=='No relacionado' or row['validacion'] in ('Discrepancia','Faltante'):
@@ -27,12 +29,12 @@ class Reception:
             if leg is None:errors.append('Indica el legajo para los elementos que no lo tienen.')
             if leg is not None:
                 identity=(person,leg)
-                if identity in identities:errors.append('CURP/legajo repetido en la selección.')
+                if identity in identities and not accepted_link:errors.append('CURP/legajo repetido en la selección.')
                 identities.add(identity)
-                if self.s.rows('SELECT id FROM prestamo_items WHERE folio_id=? AND curp_esperada=? AND legajo_esperado=? AND id<>?',(folio,person,leg,ident)):
+                if not accepted_link and self.s.rows('SELECT id FROM prestamo_items WHERE folio_id=? AND curp_esperada=? AND legajo_esperado=? AND id<>?',(folio,person,leg,ident)):
                     errors.append('Ya existe ese legajo en otro elemento; revisa antes de conciliar.')
             cycles=self.s.rows('SELECT id,activo,prestamo_item_id FROM trabajos WHERE folio_id=? AND curp=? AND legajo=?',(folio,person,leg))
-            if any(not w['activo'] or w['prestamo_item_id']!=ident for w in cycles):
+            if not accepted_link and any(not w['activo'] or w['prestamo_item_id']!=ident for w in cycles):
                 errors.append('Existe un ciclo inactivo o asociado a otro elemento; requiere revisión.')
             rows.append(dict(row,legajo_propuesto=leg,legajo_nuevo=row['legajo_esperado'] is None,
                              resultado='Revisar' if errors else 'Ya aceptado' if row['validacion']=='Aceptado' else 'Listo para aceptar',

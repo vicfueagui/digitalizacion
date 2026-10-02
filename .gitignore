@@ -41,14 +41,44 @@ DEMO.json
 *.docx
 ensayos/
 
-# Entradas originales y evidencias locales: no publicar por accidente.
-/PROMPT_CODEX*.md
-/VALIDACION_PRUEBAS.txt
+# Contexto generado: local, fuera de datos operativos.
+.contexto-exportado/
+
+# Credenciales, configuracion personal y archivos privados.
+.vscode/
+.ssh/
+.secrets/
+secrets/
+credenciales/
+credentials/
+.[eE][nN][vV]*
 *.pem
 *.key
-*.p12
 *.pfx
-.ssh/
+*.p12
+id_rsa*
+id_ed25519*
+credentials*.json
+service-account*.json
 
-# Inventario de fuentes externas privadas.
+# Variantes de bases/datos y binarios: compartir solo codigo y documentos revisados.
+*.[sS][qQ][lL][iI][tT][eE]*
+*.[dD][bB]
+*.[dD][bB]-*
+*.[dD][bB]3
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.7z
+*.rar
+*.bak
+*.backup
+*.whl
+*.exe
+*.msi
+
+# Evidencias locales y entradas sin revision para publicacion.
+/PROMPT_CODEX*.md
+/docs/PROMPT_CODEX*.md
+/VALIDACION_PRUEBAS.txt
+/VALIDACION_ENTORNO.txt
 /docs/FUENTES_SHA256.txt

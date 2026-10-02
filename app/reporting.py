@@ -11,14 +11,19 @@ from .operations import KANBAN
 class Reporting:
     def __init__(self,store):self.s=store
 
-    def card(self,work):
+    def card(self,work,metadata_only=False):
         w=self.s.one('trabajos',work);folio=self.s.one('folios',w['folio_id'])
-        item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(w['prestamo_item_id'],))
+        from .integrations import Integrations
+        context=Integrations(self.s).context(work)
+        item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(context['prestamo_item_id'],))
         custody=item[0]['custodia'] if item else 'Pendiente de conciliación'
         observations=self.s.rows("SELECT o.* FROM observaciones_revision o JOIN entregas e ON e.id=o.entrega_detectada WHERE e.trabajo_id=? AND o.estado IN ('Abierta','En corrección')",(work,))
         corrections=self.s.rows("SELECT c.id FROM correcciones_tiff c JOIN archivos_tiff a ON a.id=c.archivo_id WHERE a.trabajo_id=? AND c.estado='Pendiente'",(work,))
         files=self.s.rows('SELECT paginas FROM archivos_tiff WHERE trabajo_id=? AND activo=1',(work,))
-        validation=Deliveries(self.s).current_validation(work)
+        if metadata_only:
+            rows=self.s.rows('SELECT * FROM validaciones WHERE trabajo_id=? AND vigente=1 ORDER BY rowid DESC LIMIT 1',(work,))
+            validation=rows[0] if rows and not self.s.rows('SELECT 1 FROM inventario_pendiente WHERE trabajo_id=?',(work,)) else None
+        else:validation=Deliveries(self.s).current_validation(work)
         state=w['estado']
         if observations or state.startswith('Correcciones') or corrections:column=KANBAN[3]
         elif state in ('Listo para aprobación','Expediente cerrado'):column=KANBAN[4]
@@ -34,7 +39,7 @@ class Reporting:
                 start=dt.datetime.fromisoformat(w['estado_desde'])
                 if start.tzinfo:elapsed=max(0,round((dt.datetime.now().astimezone()-start).total_seconds()/3600,2))
             except ValueError:pass
-        return dict(w,folio=folio['numero'],custodia=custody,columna=column,observaciones=len(observations),reescaneos=len(corrections),
+        return dict(w,nombre=context['nombre'],integracion=context['etiqueta'],folio=context['folio'],custodia=custody,columna=column,observaciones=len(observations),reescaneos=len(corrections),
                     tiff_activos=len(files),paginas=sum(r['paginas'] for r in files),validacion=validation['resultado'] if validation else 'Sin vigencia',
                     responsable=' / '.join(r['persona'] for r in assignments),horas_etapa=elapsed)
 
@@ -42,8 +47,10 @@ class Reporting:
         result=[]
         # Una tarjeta por ciclo vigente seleccionado del maestro; el historial conserva los demás.
         for work in self.s.works():
-            row=self.card(work['id'])
-            if any(value and str(value).casefold() not in str(row.get(key,'')).casefold() for key,value in filters.items() if key!='con_observaciones'):continue
+            from .directory import normalized
+            row=self.card(work['id'],metadata_only=True)
+            row['texto']=' '.join(str(row[k]) for k in ('curp','nombre','legajo','folio','integracion'))
+            if any(value and (str(value)!=str(row.get(key,'')) if key in ('prioridad','validacion') else normalized(str(value)) not in normalized(str(row.get(key,'')))) for key,value in filters.items() if key!='con_observaciones'):continue
             if filters.get('con_observaciones')=='Sí' and not row['observaciones']:continue
             if filters.get('con_observaciones')=='No' and row['observaciones']:continue
             result.append(row)
@@ -52,7 +59,9 @@ class Reporting:
     def summary(self,work):
         w=self.s.one('trabajos',work);master=w['expediente_id'];folio=self.s.one('folios',w['folio_id'])
         name=self.s.rows('SELECT nombre FROM personas WHERE curp=?',(w['curp'],))
-        item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(w['prestamo_item_id'],))
+        from .integrations import Integrations
+        item=self.s.rows('SELECT * FROM prestamo_items WHERE id=?',(Integrations(self.s).current(work)['prestamo_item_id'],))
+        folio=self.s.one('folios',Integrations(self.s).current(work)['folio_id'])
         assignments=self.s.rows('SELECT * FROM asignaciones WHERE trabajo_id=? ORDER BY id',(work,))
         inventory=Deliveries(self.s).inventory(work);validation=Deliveries(self.s).current_validation(work)
         deliveries=self.s.rows('SELECT id,numero,creado,operador,estado,manifest_hash,inventario_hash,ruta FROM entregas WHERE trabajo_id=? ORDER BY numero',(work,))
@@ -66,7 +75,7 @@ class Reporting:
             digital={k:None for k in digital};digital['procedencia']='Sin inventario registrado; no equivale a cero digitalizado'
         card=self.card(work)
         observations=self.s.rows('SELECT o.* FROM observaciones_revision o JOIN entregas e ON e.id=o.entrega_detectada WHERE e.trabajo_id=? ORDER BY o.id',(work,))
-        events=self.s.rows('SELECT fecha,operador,evento,motivo FROM eventos_operativos WHERE trabajo_id=? OR prestamo_item_id=? ORDER BY fecha,id',(work,w['prestamo_item_id']))
+        events=self.s.rows('SELECT fecha,operador,evento,motivo FROM eventos_operativos WHERE trabajo_id=? OR prestamo_item_id IN (SELECT prestamo_item_id FROM integraciones WHERE trabajo_id=?) ORDER BY fecha,id',(work,work))
         events+=self.s.rows('''SELECT fecha,operador,accion AS evento,motivo FROM auditoria WHERE
             (entidad='trabajos' AND registro=?) OR (entidad='folios' AND registro=?) OR
             (entidad='archivos_tiff' AND registro IN (SELECT CAST(id AS TEXT) FROM archivos_tiff WHERE trabajo_id=?)) OR
@@ -76,6 +85,7 @@ class Reporting:
         return {'Identificación':{'CURP':w['curp'],'Nombre':name[0]['nombre'] if name else '', 'Legajo':w['legajo'],'ID expediente':master,'Ciclo actual':work,'Folio actual':folio['numero']},
                 'Legajos de la misma CURP':self.s.rows('SELECT e.id,e.legajo FROM expedientes e WHERE e.curp=? ORDER BY e.legajo',(w['curp'],)),
                 'Lista de origen':self.s.rows('SELECT l.creado,l.hoja,f.nombre AS archivo,r.resultado,r.detalle,o.fila,o.contenido FROM lista_registros r JOIN listas_importadas l ON l.id=r.lista_id JOIN fuentes f ON f.id=l.fuente_id JOIN origen o ON o.id=r.origen_id WHERE r.prestamo_item_id=? OR r.prestamo_item_id=(SELECT lista_padre_id FROM prestamo_items WHERE id=?)',(w['prestamo_item_id'],w['prestamo_item_id'])),
+                'Integraciones':Integrations(self.s).list(work),'Totales acumulados':Integrations(self.s).totals(work),
                 'Ciclos históricos':self.s.associated(work),'Custodia física':dict(item[0],area_origen=folio['area_origen'],entrega=folio['entrega'],recibe=folio['recibe'],recepcion_at=folio['recepcion_at'],acuse=folio['acuse']) if item else {'estado':'Pendiente de conciliación'},
                 'Asignaciones':assignments,'Proceso':{'Estado':w['estado'],'Calidad':card['calidad'],'Kanban':card['columna'],'Inicio registrado':w['estado_desde'],'Horas en etapa con cobertura':card['horas_etapa'],'Procedencia':w['procedencia'],'Conciliación pendiente':bool(w['conciliacion_pendiente'])},
                 'Conteo físico':{'Hojas confirmadas':w['fisicos'],'Fuera del broche (ya incluidas)':w['fuera_broche'],'Bloques':self.s.rows('SELECT * FROM conteos WHERE trabajo_id=?',(work,))},
@@ -141,4 +151,5 @@ class Reporting:
     def export_datasets(self,folder):
         tables=('expedientes','folios','personas','prestamo_items','asignaciones','eventos_operativos','documentos_logicos','versiones_archivo','entregas','entrega_items','validaciones','sesiones_revision','observaciones_revision','observacion_historial','importaciones_legado','importacion_items','directorio','directorio_alias','listas_importadas','lista_registros','fuentes','origen')
         for table in tables:self.s.csv_write(folder/(table+'.csv'),self.s.rows('SELECT * FROM '+table))
+        for table in ('integraciones','lotes_tiff'):self.s.csv_write(folder/(table+'.csv'),self.s.rows('SELECT * FROM '+table))
         with (folder/'hechos_operativos.json').open('x',encoding='utf-8') as f:json.dump(self.facts(),f,ensure_ascii=False,indent=2)

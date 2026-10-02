@@ -8,7 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from app.integrity import runtime_info
 
 
 def main():
@@ -19,7 +18,6 @@ def main():
     suite = unittest.defaultTestLoader.discover(str(ROOT / 'tests'))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     outcome = {
-        'entorno': runtime_info(),
         'ejecutadas': result.testsRun,
         'aprobadas': result.testsRun - len(result.failures) - len(result.errors) - len(result.skipped) - len(result.expectedFailures) - len(result.unexpectedSuccesses),
         'fallidas': len(result.failures), 'errores': len(result.errors), 'omitidas': len(result.skipped),
