@@ -33,23 +33,24 @@ def bucket(value,period):
 class Cube:
     def __init__(self,store):self.s=store
 
-    def snapshot(self,works,period='Mes',dimension='Folio',source=SOURCES[0],start='',end=''):
+    def snapshot(self,works,period='Mes',dimension='Folio',source=SOURCES[0],start='',end='',folio=''):
         if period not in PERIODS or dimension not in DIMENSIONS or source not in SOURCES:raise ValueError('Configuración del cubo no válida.')
         first=date(start);last=date(end)
         if first and last and first>last:raise ValueError('La fecha inicial supera a la final.')
         scope={r['id']:r for r in works if r['activo']}
-        integrations={r['id']:r for r in self.s.rows('SELECT i.*,f.numero AS folio FROM integraciones i JOIN folios f ON f.id=i.folio_id') if r['trabajo_id'] in scope}
-        files=self.s.rows('SELECT id,trabajo_id,integracion_id,integracion_ingreso_id,paginas,importado,activo FROM archivos_tiff')
+        from .directory import normalized
+        placeholders=','.join('?' for _ in scope) or 'NULL'
+        integrations={r['id']:r for r in self.s.rows('SELECT i.*,f.numero AS folio FROM integraciones i JOIN folios f ON f.id=i.folio_id WHERE i.trabajo_id IN ('+placeholders+')',tuple(scope))
+                      if not folio or normalized(folio) in normalized(r['folio'])}
         facts=[]
         if source==SOURCES[0]:
-            grouped_files={}
-            for file in files:
-                if file['activo']:grouped_files.setdefault(file['integracion_id'],[]).append(file)
+            grouped_files={r['integracion_id']:r for r in self.s.rows('SELECT integracion_id,COUNT(*) AS tiff,SUM(paginas) AS paginas FROM archivos_tiff WHERE activo=1 AND trabajo_id IN ('+placeholders+') GROUP BY integracion_id',tuple(scope))}
             for row in integrations.values():
-                active=grouped_files.get(row['id'],[])
+                active=grouped_files.get(row['id'],{'tiff':0,'paginas':0})
                 facts.append(dict(row,fecha=row['recibido'],hojas=row['fisicos'] or 0,pendientes=int(row['fisicos'] is None),
-                                  tiff=len(active),paginas=sum(f['paginas'] for f in active),nuevas=int(row['numero']>0)))
+                                  tiff=active['tiff'],paginas=active['paginas'],nuevas=int(row['numero']>0)))
         else:
+            files=self.s.rows('SELECT id,integracion_ingreso_id,paginas,importado FROM archivos_tiff a WHERE trabajo_id IN ('+placeholders+') AND NOT EXISTS(SELECT 1 FROM procedencia_paginas p WHERE p.archivo_id=a.id)',tuple(scope))
             for file in files:
                 row=integrations.get(file['integracion_ingreso_id'])
                 if row:facts.append(dict(row,fecha=file['importado'],hojas=0,pendientes=0,tiff=1,paginas=file['paginas'],nuevas=0,archivo_id=file['id']))

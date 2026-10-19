@@ -167,6 +167,9 @@ class Store:
         groups={}
         for row in rows:groups.setdefault((row['curp'].strip().upper(),row['legajo']),[]).append(row)
         preferences={(r['curp'],r['legajo']):r['trabajo_id'] for r in self.rows('SELECT * FROM expediente_preferido')}
+        folio_groups={}
+        for receipt in self.rows('SELECT DISTINCT t.curp,t.legajo,f.numero FROM integraciones i JOIN folios f ON f.id=i.folio_id JOIN trabajos t ON t.id=i.trabajo_id ORDER BY f.numero'):
+            folio_groups.setdefault((receipt['curp'].strip().upper(),receipt['legajo']),[]).append(receipt['numero'])
         result=[]
         for key,records in groups.items():
             chosen=next((r for r in records if r['id']==preferences.get(key) and r['activo']),next((r for r in records if r['activo']),records[0]))
@@ -174,7 +177,7 @@ class Store:
             from .directory import normalized
             if texto and normalized(texto) not in normalized(chosen['curp']+' '+chosen['nombre']):continue
             # Folio encuentra también asignaciones históricas sin cambiar el principal.
-            associated_folios=[r['numero'] for r in self.rows('SELECT DISTINCT f.numero FROM integraciones i JOIN folios f ON f.id=i.folio_id JOIN trabajos t ON t.id=i.trabajo_id WHERE t.curp=? AND t.legajo=?',key)]
+            associated_folios=folio_groups.get(key,[])
             if folio and not any(normalized(folio) in normalized(f) if partial else f==folio for f in associated_folios):continue
             if estado and chosen['estado']!=estado:continue
             if digitalizador and not (normalized(digitalizador) in normalized(chosen['digitalizador']) if partial else chosen['digitalizador']==digitalizador):continue

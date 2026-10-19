@@ -96,7 +96,19 @@ def stream_edit(source,target,page,ops):
     """Reescribe todas las páginas con memoria acotada, editando solo la elegida."""
     Image,Tiff=pillow();infos=page_info(source)
     if not 0<=page<len(infos):raise ValueError('Página inexistente.')
-    with Image.open(str(source)) as original, Tiff.AppendingTiffWriter(str(target),True) as writer:
+    # Pillow 12 hereda de BytesIO y puede volver a llamar close desde su
+    # finalizador. Cerrar una sola vez el archivo y el buffer evita buscar
+    # offsets en un descriptor ya cerrado; los errores reales se propagan.
+    import io
+    class ClosingTiffWriter(Tiff.AppendingTiffWriter):
+        def close(self):
+            if getattr(self,'_closed_once',False):return
+            try:
+                if hasattr(self,'f') and not self.f.closed:super().close()
+            finally:
+                self._closed_once=True
+                if isinstance(self,io.BytesIO):io.BytesIO.close(self)
+    with Image.open(str(source)) as original, ClosingTiffWriter(str(target),True) as writer:
         for index,info in enumerate(infos):
             original.seek(index)
             # Solo etiquetas descriptivas, nunca offsets/compression/orientation heredados.
@@ -178,6 +190,11 @@ class CodingService(CodingV3):
         recovered=0
         for op in pending:
             info=json.loads(op['detalle'])
+            if op['tipo']=='paginas':
+                from .pages import PageOperations
+                PageOperations(self).recover(op)
+                recovered+=1
+                continue
             if op['tipo']=='importar':
                 # Cuarentena de copias sin registrar; nunca eliminar la fuente externa.
                 quarantine=self.path(self.work_dir(work)/'recuperados');quarantine.mkdir(exist_ok=True)
@@ -378,19 +395,25 @@ class CodingService(CodingV3):
         finally:
             if temp.exists():temp.unlink()
 
-    def restore_original(self,ident):
+    def restore_original(self,ident,revision_id=None):
         row,path=self.checked(ident);original=self.path(row['original'])
-        if digest(original)!=row['hash_original']:raise ValueError('El respaldo original no coincide con su huella.')
+        restored_hash=row['hash_original'];label='Restaurar original'
+        if revision_id is not None:
+            revisions=self.store.rows('SELECT * FROM revisiones_tiff WHERE id=? AND archivo_id=?',(revision_id,ident))
+            if not revisions:raise ValueError('La revisión pertenece a otro documento.')
+            original=self.path(revisions[0]['ruta']);restored_hash=revisions[0]['hash'];label='Restaurar revisión '+str(revision_id)
+        if digest(original)!=restored_hash:raise ValueError('La evidencia no coincide con su huella.')
+        if len(page_info(original,True))!=row['paginas']:raise ValueError('La evidencia tiene otra cantidad de páginas.')
         base=self.work_dir(row['trabajo_id'])/'revisiones';base.mkdir(exist_ok=True);revision=self.path(base/(uuid.uuid4().hex+'.tif'))
         self.copy_new(path,revision);temp=path.with_name('.restore_'+uuid.uuid4().hex+'.tmp')
         op=self.log(row['trabajo_id'],ident,'restaurar original',{'ruta':row['ruta'],'respaldo':self.relative(revision)})
         try:
             shutil.copy2(str(original),str(temp));os.replace(str(temp),str(path))
             with self.store.db:
-                self.store.db.execute('INSERT INTO revisiones_tiff(archivo_id,ruta,fecha,operacion,hash) VALUES(?,?,?,?,?)',(ident,self.relative(revision),now(),'Restaurar original',row['hash_actual']))
-                self.store.db.execute('UPDATE archivos_tiff SET hash_actual=? WHERE id=?',(row['hash_original'],ident));self.invalidate(row['trabajo_id'])
+                self.store.db.execute('INSERT INTO revisiones_tiff(archivo_id,ruta,fecha,operacion,hash) VALUES(?,?,?,?,?)',(ident,self.relative(revision),now(),label,row['hash_actual']))
+                self.store.db.execute('UPDATE archivos_tiff SET hash_actual=? WHERE id=?',(restored_hash,ident));self.invalidate(row['trabajo_id'])
                 from .assets import changed
-                changed(self,ident,row,revision,'Restaurar original')
+                changed(self,ident,row,revision,label)
                 for correction in self.store.rows("SELECT * FROM correcciones_tiff WHERE archivo_id=? AND estado='Página sustituida'",(ident,)):
                     self.store.db.execute("UPDATE correcciones_tiff SET estado='Pendiente',resuelto=NULL,nuevo_id=NULL WHERE id=?",(correction['id'],))
                     self.store.db.execute("UPDATE incidencias SET estado='Abierta',resuelto=NULL WHERE id=?",(correction['incidencia_id'],))

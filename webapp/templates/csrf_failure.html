@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <title>Abre nuevamente el formulario · Digitalización</title>
+  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="eyebrow">ACCESO PROTEGIDO</div>
+    <h1>Abre nuevamente el formulario</h1>
+    <p>{{ explanation }}</p>
+    <p class="notice">Esta solicitud se rechazó antes de ejecutar la acción. No se volvió a enviar tu contraseña ni se repitió la operación.</p>
+    <a class="btn btn-primary w-100" href="{{ return_url }}">{{ return_label }}</a>
+    <p class="small muted mt-4 mb-0">Usa el botón para obtener una página nueva. Evita volver a enviar el formulario anterior con el botón Atrás del navegador.</p>
+  </main>
+</body>
+</html>

@@ -29,8 +29,16 @@ def check(value,write=False):
     inside=path==RUN or RUN in path.parents
     project=Path('C:/Digitalizacion')
     forbidden=write and not inside
-    if project in path.parents and not inside and CODE not in path.parents and (project/'.venv') not in path.parents:forbidden=True
-    if forbidden:violations.append({'evento':'ruta','escritura':write});raise PermissionError('Acceso fuera del ensayo sintético')
+    runtime_roots=(project/'.venv',Path(sys.prefix).resolve(),Path(sys.base_prefix).resolve())
+    if project in path.parents and not inside and CODE not in path.parents and not any(p==path or p in path.parents for p in runtime_roots):forbidden=True
+    if forbidden:
+        frame=sys._getframe();stack=[]
+        for _ in range(8):
+            stack.append(frame.f_code.co_name)
+            if frame.f_back is None:break
+            frame=frame.f_back
+        violations.append({'evento':'ruta','escritura':write,'ambito':'codigo' if CODE in path.parents else 'runtime' if any(p==path or p in path.parents for p in runtime_roots) else 'externo','funciones':stack})
+        raise PermissionError('Acceso fuera del ensayo sintético')
 
 def audit(event,args):
     if event=='open':

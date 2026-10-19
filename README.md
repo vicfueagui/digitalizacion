@@ -1,39 +1,31 @@
-# Digitalización 0.7.0 · respaldo de código HP
+# Digitalización web 0.8.2-dev
 
-Instantánea preparada el 2026-10-02 desde la instalación de Windows 10. Contiene código, pruebas sintéticas y documentación seleccionada. El usuario autorizó expresamente publicar esta copia en el repositorio público actual. La fecha y el commit efectivos se consultan en el historial de GitHub.
+Respaldo de código y documentación solicitado el 2026-10-09 para el repositorio público vicfueagui/digitalizacion. Preparación retomada y cotejada el 2026-10-19. Rama prevista: respaldo/digitalizacion-web-0.8.2-hp-20261019. Conserva la etiqueta dev del paquete aprobado e instalado en la HP; no es una nueva versión del producto.
 
-El código de aplicación coincide con la instalación local 0.7.0: núcleo SQLite 8 / TIFF 3. Entorno comprobado previamente: Python 3.8.10 x64, Tk/Tcl 8.6.9, SQLite 3.35.5 y Pillow 9.5.0. Los requisitos de otros perfiles se conservan como antecedentes; `requirements.txt` corresponde al perfil Windows y `requirements-laptop.txt` al perfil Mac. No cambiar el entorno operativo por descargar este respaldo.
+Esta instantánea contiene el código instalado, recursos locales con sus licencias, guías y pruebas sintéticas. **No contiene expedientes, TIFF, bases SQLite, cuentas, contraseñas de operación, reportes, respaldos ni intérpretes.** Tampoco configura sincronización continua. El historial de las ramas anteriores no se reescribe ni se certifica libre de datos por esta publicación.
 
-## Qué contiene
+## Estado y tecnologías
 
-Aplicación de escritorio Python/Tkinter, SQLite, visor TIFF con Pillow, integraciones numeradas, entregas completas con historial, indicadores y cubo temporal. Incluye las pruebas adicionales de 0.7.0 procedentes de la candidata validada y el exportador local de contexto.
+La instalación HP funciona desde INICIAR.bat con los datos originales y la cuenta existente, en http://127.0.0.1:8765. Núcleo 8 / TIFF 4. La instalación tuvo respaldo privado, copia restaurada y validada, migraciones y cotejo final. No copiar esta carpeta encima de una instalación: la activación verifica un manifiesto y la primera transición no actualiza una web ya activada.
 
-Guías de Ayuda: [integraciones](docs/INTEGRACIONES_V070.md), [recepción e indicadores](docs/RECEPCION_INDICADORES_V061.md) y [operación](docs/OPERACION_V05.md). Los títulos históricos describen su versión de origen; la versión del código es 0.7.0. En la copia de la guía de operación se sustituyó una ruta histórica de perfil local por `/RUTA/DEL/PROYECTO`; el original local se conserva.
+Python web 3.14.8, Django 5.2.17 LTS, Pillow 12.3.0, Waitress 3.0.2 y WhiteNoise 6.12.0. Interfaz Django/HTMX 2.0.11, Bootstrap 5.3.8 y Chart.js 4.5.1, todos los recursos locales. Negocio compartido compatible con Python 3.8; el servidor web requiere el entorno moderno de requirements-modern.txt. No necesita Node ni CDN para trabajar.
 
-[CONTEXTO_CHATGPT.md](CONTEXTO_CHATGPT.md) conserva el resumen de la instalación, sus pruebas y pendientes. Las fuentes canónicas extensas permanecen en el equipo de operación. Este respaldo no incluye todas las bitácoras ni los documentos históricos enlazados desde ellas. No reconstruye el entorno ni sustituye un respaldo de datos.
+## Funciones
 
-## Exclusiones deliberadas
+Recepción y folios, expedientes por CURP/legajo, integraciones numeradas con conteo propio, cuatro vistas TIFF y estación de tres paneles, importación múltiple/carpeta, edición con revisiones, división/extracción/unión con procedencia por página, favoritos, códigos y lotes, indicadores y ayuda. Organizar / entregar produce otra entrega completa actualizada y conserva las anteriores. Hoja física, archivo TIFF, página y versión de entrega son unidades distintas.
 
-Sin SQLite, TIFF, expedientes, Excel/CSV operativos, reportes, logs, resguardos, credenciales, `.env`, entorno virtual, exportaciones de contexto, bundles ni instaladores binarios. Los identificadores y secretos que aparecen en las pruebas son ejemplos ficticios para verificar validaciones. La prueba de fuentes privadas permanece desactivada y sus archivos no se distribuyen.
+Guías: [estación TIFF](docs/GUIA_ESTACION_TIFF_V082.md), [ergonomía e indicadores](docs/GUIA_WEB_V081.md), [operación web](docs/GUIA_WEB_V080.md). Sus instrucciones de apertura y etiquetas de candidata describen la preparación histórica congelada; las rutas de esa HP no existen en una descarga nueva. Las credenciales de ejemplo son exclusivamente ficticias.
 
-La selección se fija mediante un manifiesto de rutas y SHA-256 externo al código. `.gitignore` añade protección para el trabajo posterior; no borra archivos rastreados ni limpia historia. No se ha auditado toda la historia del repositorio remoto.
+## Evaluar en una copia separada
 
-El instalador offline de Pillow necesita su wheel verificado, excluido aquí por ser binario. El generador de documentos históricos conserva referencias a fuentes no distribuidas. Este árbol es respaldo de fuentes y guías seleccionadas, no un paquete instalador completo. La documentación HTML antigua de actualización se omite; no usar sus instrucciones de versiones anteriores para reinstalar 0.7.0.
+En otro directorio, usando un intérprete Python moderno compatible y un entorno propio, instalar los requisitos fijados y ejecutar tools/preparar_demo_web.py. Crea únicamente una nueva carpeta demo-web hermana del código; rechaza un destino que ya exista. Después ejecutar iniciar_web.py con --workspace apuntando a esa demo. No usar bases preexistentes ni las cuentas ficticias para operación. No se ejecutó una instalación nueva de dependencias para este respaldo.
 
-## Uso seguro
+INICIAR.bat de operación necesita python_web_ruta.txt y activación privada, excluidos deliberadamente. Descargar esta rama no restaura datos ni habilita una estación operativa por sí solo. Recuperar una oficina exige el resguardo privado, runtime compatible, revisión de capturas posteriores y procedimiento validado; no abrir TIFF 4 con código antiguo.
 
-El acceso diario existente sigue siendo `C:\Digitalizacion\INICIAR.bat`. Descargar este código no actualiza la aplicación ni sus datos. No extraerlo sobre operación ni colocar código anterior sobre una base migrada. Cualquier instalación futura requiere su propio respaldo, validación en copia y paquete revisado.
+## Verificación y conservación
 
-Con el intérprete compatible ya disponible se pueden ejecutar pruebas ficticias desde esta copia:
+release-manifest.json identifica los 115 archivos originales del paquete instalado por SHA-256. Los demás archivos son soporte de desarrollo/documentación; la lista exacta de esta instantánea está en MANIFIESTO_RESPALDO.json. La documentación canónica pública es un resumen revisado, no una copia de bitácoras o informes privados de operación.
 
-```powershell
-& C:\Digitalizacion\.venv\Scripts\python.exe -B tools\probar_integraciones.py
-```
+Las pruebas del producto y del respaldo se describen en [validación](docs/VALIDACION_WEB_V082_HP.md). La aceptación humana de la candidata fue comunicada antes de instalar; el rendimiento de una jornada completa y los atajos del teclado físico no se certifican mediante pruebas automáticas.
 
-El runner crea un directorio nuevo de pruebas junto a esta copia y limita las escrituras Python a ese directorio. No garantiza control de toda llamada nativa. No habilitar fuentes privadas para probar el respaldo.
-
-`EXPORTAR_CONTEXTO.bat` requiere `.venv` preparada localmente. El exportador no conecta ni sincroniza ChatGPT con el equipo; el usuario adjunta manualmente el texto generado.
-
-La rama de destino es `respaldo/digitalizacion-tk-0.7.0-hp-20261002`. Es una instantánea de la instalación HP; no implica haber fusionado las diferencias de la rama remota 0.6.3. No sustituye esa rama ni `main`, y no configura sincronización automática.
-
-Validación de esta copia en Windows/Python 3.8.10: 30 pruebas aprobadas, cero fallos, errores u omisiones; exportador con datos sensibles ficticios, migración, Tk, BI y entrega/restauración. Gramática 3.8 comprobada aparte en 76 fuentes. Las evidencias locales no se publican automáticamente. El resumen de instalación conserva el estado anterior a esta publicación como antecedente.
+Para compartir contexto puede usarse EXPORTAR_CONTEXTO.bat con el entorno 3.8 indicado por ese acceso, o ejecutar tools/exportar_contexto.py con un intérprete disponible. El exportador requiere revisión explícita de documentos y sus huellas; no publica archivos ni conecta ChatGPT con la carpeta local.

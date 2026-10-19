@@ -1,9 +1,11 @@
 {
   "version": 1,
-  "revision": "2026-10-02; resumen y AGENTS revisados completos; otras fuentes omitidas del respaldo de codigo",
-  "criterio": "No renovar sin revision humana integral",
+  "revision": "2026-10-19; edición pública: AGENTS, contexto y plan revisados íntegramente; documentación histórica omitida",
+  "criterio": "No renovar huellas sin revision del texto. La lista de rutas la fija el exportador.",
   "revisados": {
-    "CONTEXTO_CHATGPT.md": "e140b6de93cf05b086e321904f5e798230ebf24e0e01e1fea96392d4c99cf264",
-    "AGENTS.md": "fcafc3063f7bc1c6014112df902c1ff910ad92ad021f49621e69385dee9247d4"
+    "CONTEXTO_CHATGPT.md": "9f78a5b033300acc561d4733aff6b9636f1db84f2aa86809733d35e83d65ca50",
+    "AGENTS.md": "c47ec545fb00db22b8694a922caa4b9aa0a9e8d07506271a772f8234f53be00f",
+    "docs/VALIDACION_FASE_B_HP.md": "3382e3ca2af8e5973e990627a10487082060a0a9cc2b9571186c2e86cfac7306",
+    "docs/PLAN_MODERNIZACION.md": "b4d7d6c959a41704cd9353f5c6ac5e0f6cd5e23fea40d272ec335b7f569844dd"
   }
 }

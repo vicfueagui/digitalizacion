@@ -1,0 +1,8 @@
+{% extends 'base.html' %}{% block title %}Recepción y folios{% endblock %}{% block content %}
+<div class="page-heading"><div><h1>Recepción y folios</h1><p>Folio → recepción física → expediente → ciclo → integraciones → documentos → entrega.</p></div><a class="btn btn-primary" href="/accion/folio/">+ Nuevo folio</a></div>
+<div class="toolbar mb-3"><a href="/importar-lista/">Importar lista</a><a href="/accion/expected/">Añadir esperado</a><a href="/accion/difference/">Revisar diferencias</a></div>
+<section class="panel"><form class="filter-bar" method="get" hx-get="/folios/" hx-target="#folio-content" hx-trigger="submit, input changed delay:250ms, change" hx-sync="this:replace">
+<div class="search-field"><label for="folio">Folio</label><select id="folio" name="folio" class="form-select"><option value="">Selecciona un folio</option>{% for f in folios %}<option value="{{ f.id }}" {% if selected == f.id|stringformat:'s' %}selected{% endif %}>{{ f.numero }} · {{ f.recepcion_estado }}</option>{% endfor %}</select></div>
+<div class="search-field"><label for="folio-query">CURP o nombre</label><input id="folio-query" name="q" value="{{ query }}" class="form-control"></div>
+<div><label for="condition">Condición de recepción</label><select id="condition" name="condicion" class="form-select"><option value="">Todas</option>{% for c in conditions %}<option {% if condition == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select></div><button class="btn btn-primary align-self-end">Buscar</button></form>
+{% include 'folio_rows.html' %}</section>{% endblock %}

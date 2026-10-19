@@ -1,3 +1,3 @@
-"""Digitalización: escritorio local con SQLite, Tkinter y Pillow."""
+"""Digitalización: servicios de expediente e interfaz web candidata."""
 
-VERSION = '0.7.0'
+VERSION = '0.8.2-dev'

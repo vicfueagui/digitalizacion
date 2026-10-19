@@ -75,6 +75,12 @@ class ExportacionTests(unittest.TestCase):
                 self.assertIn("CONTEXTO_CHATGPT.md", [item["archivo"] for item in omitted])
                 self.assertNotIn(value, json.dumps(omitted))
 
+    def test_version_candidata_sin_ejecutar_codigo(self):
+        for version in ('0.8.0rc1','0.8.1-dev','0.8.1.dev2','0.8.1'):
+            with self.subTest(version=version):
+                self.write('app/__init__.py',"VERSION = '"+version+"'\nraise RuntimeError('No ejecutar')\n")
+                self.assertEqual(ex.version_codigo(self.root),version)
+
     def test_prosa_nueva_sin_revision_no_sale(self):
         self.write("CONTEXTO_CHATGPT.md", "En una narracion aparece Persona Ficticia sin campo ni identificador.")
         target, metadata = ex.exportar(self.root)

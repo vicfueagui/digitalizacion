@@ -81,7 +81,8 @@ class WorkspaceTests(unittest.TestCase):
             self.assertFalse(any(n.endswith(('-wal','-shm','-journal')) for n in visited))
             self.assertIn('datos/evidencia.txt',visited)
             self.assertEqual((out/'datos/evidencia.txt').read_bytes(),b'conservar')
-            with sqlite3.connect(str(out/'datos/digitalizacion.sqlite3')) as db:
+            from contextlib import closing
+            with closing(sqlite3.connect(str(out/'datos/digitalizacion.sqlite3'))) as db:
                 self.assertEqual(db.execute('SELECT numero FROM folios').fetchone()[0],'WAL-SIN-RESOLVER')
             self.assertEqual(set(verify_backup(out)['files']),{'datos/digitalizacion.sqlite3','datos/evidencia.txt'})
         finally:s.db.close()

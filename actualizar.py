@@ -50,15 +50,17 @@ def inspect_release(source, destination):
     return manifest
 
 
-def apply_update(source, destination):
+def apply_update(source, destination, expected_data=None):
     source=Path(source).resolve();destination=Path(destination).resolve()
     manifest=inspect_release(source,destination)
     ws=Workspace(destination);lock=WorkspaceLock(destination)
     stamp=datetime.datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+uuid.uuid4().hex[:8]
     recovery=destination.parent/(destination.name+'_resguardo_'+stamp)
     try:
-        recovery.mkdir(exist_ok=False)
         data_before=data_fingerprint(ws)
+        if expected_data is not None and data_before != expected_data:
+            raise ValueError('Los datos cambiaron después de validar la copia. No se sustituyó código; prepara otro resguardo.')
+        recovery.mkdir(exist_ok=False)
         db=sqlite3.connect(ws.database.as_uri()+'?mode=ro',uri=True)
         try:create_backup(SimpleNamespace(db=db,path=ws.database,workspace=ws),recovery/'datos_antes')
         finally:db.close()

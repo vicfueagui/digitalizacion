@@ -317,7 +317,7 @@ def preparar_salida(root):
 def version_codigo(root):
     try:
         content = leer(root / "app/__init__.py").decode("utf-8-sig")
-        match = re.search(r"(?m)^VERSION\s*=\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"]", content)
+        match = re.search(r"(?m)^VERSION\s*=\s*['\"]([0-9]+\.[0-9]+\.[0-9]+(?:(?:a|b|rc)[0-9]+|[-.]?dev[0-9]*)?)['\"]", content)
         return match.group(1) if match else "no determinada"
     except (OSError, UnicodeError, ContextoError):
         return "no determinada"

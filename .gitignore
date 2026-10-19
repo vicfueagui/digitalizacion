@@ -82,3 +82,8 @@ service-account*.json
 /VALIDACION_PRUEBAS.txt
 /VALIDACION_ENTORNO.txt
 /docs/FUENTES_SHA256.txt
+
+# Acceso privado de la aplicación web: configuración, cuentas y solicitudes.
+.web/
+acceso-demo.txt
+python_web_ruta.txt
